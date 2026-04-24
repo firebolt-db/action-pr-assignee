@@ -87,6 +87,7 @@ export async function fetchActivitySignals(
 ): Promise<SignalsByLogin> {
   const signalsByLogin: SignalsByLogin = {};
   const candidateSet = new Set(candidates.map((login) => login.toLowerCase()));
+  const teamMembersCache: Record<string, string[]> = { ...teamMembersByTeamSlug };
 
   let cursor: string | null = null;
   while (true) {
@@ -121,10 +122,12 @@ export async function fetchActivitySignals(
     const pullRequests = response.repository?.pullRequests;
     if (!pullRequests) break;
 
+    let pageHasRecentPr = false;
     for (const pr of pullRequests.nodes) {
       if (pr.updatedAt < activitySinceIso) {
         continue;
       }
+      pageHasRecentPr = true;
 
       const assignees = pr.assignees.nodes.map((node) => node.login.toLowerCase());
       for (const assignee of assignees) {
@@ -146,7 +149,19 @@ export async function fetchActivitySignals(
 
         if (reviewer.slug && reviewer.organization?.login) {
           const teamKey = `${reviewer.organization.login.toLowerCase()}/${reviewer.slug.toLowerCase()}`;
-          const members = teamMembersByTeamSlug[teamKey] ?? [];
+          if (!teamMembersCache[teamKey]) {
+            try {
+              teamMembersCache[teamKey] = await expandTeamMembers(
+                octokit,
+                reviewer.organization.login,
+                reviewer.slug,
+              );
+            } catch {
+              teamMembersCache[teamKey] = [];
+            }
+          }
+
+          const members = teamMembersCache[teamKey] ?? [];
           for (const memberLogin of members) {
             const login = memberLogin.toLowerCase();
             if (!candidateSet.has(login)) continue;
@@ -168,7 +183,7 @@ export async function fetchActivitySignals(
       }
     }
 
-    if (!pullRequests.pageInfo.hasNextPage) break;
+    if (!pullRequests.pageInfo.hasNextPage || !pageHasRecentPr) break;
     cursor = pullRequests.pageInfo.endCursor;
   }
 

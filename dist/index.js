@@ -70108,6 +70108,7 @@ async function fetchCodeownersAtBaseRef(octokit, owner, repo, baseRef) {
 var prCoreQuery = `
   query PrCore($owner: String!, $repo: String!, $pullNumber: Int!, $cursor: String) {
     repository(owner: $owner, name: $repo) {
+      defaultBranchRef { name }
       pullRequest(number: $pullNumber) {
         id
         number
@@ -70174,6 +70175,7 @@ async function fetchPrCoreData(octokit, owner, repo, pullNumber) {
         baseOwner: pr.baseRepository.owner.login,
         baseRepo: pr.baseRepository.name,
         baseRef: pr.baseRefName,
+        defaultBranch: response.repository?.defaultBranchRef?.name ?? pr.baseRefName,
         headOwner: headRepo?.owner.login ?? pr.baseRepository.owner.login,
         headRepo: headRepo?.name ?? pr.baseRepository.name,
         suggestedReviewers: pr.suggestedReviewers.flatMap((reviewer) => reviewer.reviewer?.login ? [reviewer.reviewer.login.toLowerCase()] : [])
@@ -70275,6 +70277,7 @@ var activityQuery = `
 async function fetchActivitySignals(octokit, owner, repo, activitySinceIso, recentAssignmentSinceIso, candidates, teamMembersByTeamSlug = {}) {
   const signalsByLogin = {};
   const candidateSet = new Set(candidates.map((login) => login.toLowerCase()));
+  const teamMembersCache = { ...teamMembersByTeamSlug };
   let cursor = null;
   while (true) {
     const response = await octokit.graphql(activityQuery, {
@@ -70286,10 +70289,12 @@ async function fetchActivitySignals(octokit, owner, repo, activitySinceIso, rece
     const pullRequests = response.repository?.pullRequests;
     if (!pullRequests)
       break;
+    let pageHasRecentPr = false;
     for (const pr of pullRequests.nodes) {
       if (pr.updatedAt < activitySinceIso) {
         continue;
       }
+      pageHasRecentPr = true;
       const assignees = pr.assignees.nodes.map((node) => node.login.toLowerCase());
       for (const assignee of assignees) {
         if (!candidateSet.has(assignee))
@@ -70309,7 +70314,14 @@ async function fetchActivitySignals(octokit, owner, repo, activitySinceIso, rece
         }
         if (reviewer.slug && reviewer.organization?.login) {
           const teamKey = `${reviewer.organization.login.toLowerCase()}/${reviewer.slug.toLowerCase()}`;
-          const members = teamMembersByTeamSlug[teamKey] ?? [];
+          if (!teamMembersCache[teamKey]) {
+            try {
+              teamMembersCache[teamKey] = await expandTeamMembers(octokit, reviewer.organization.login, reviewer.slug);
+            } catch {
+              teamMembersCache[teamKey] = [];
+            }
+          }
+          const members = teamMembersCache[teamKey] ?? [];
           for (const memberLogin of members) {
             const login = memberLogin.toLowerCase();
             if (!candidateSet.has(login))
@@ -70331,7 +70343,7 @@ async function fetchActivitySignals(octokit, owner, repo, activitySinceIso, rece
         ensureSnapshot(signalsByLogin, login).activity.recentAssignments += 1;
       }
     }
-    if (!pullRequests.pageInfo.hasNextPage)
+    if (!pullRequests.pageInfo.hasNextPage || !pageHasRecentPr)
       break;
     cursor = pullRequests.pageInfo.endCursor;
   }
@@ -70970,6 +70982,12 @@ function isNotAssignableError(error) {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return message.includes("not assignable") || message.includes("could not resolve to a user") || message.includes("must be a collaborator");
 }
+function rankForSelectedAssignee(ranking, selectedLogin) {
+  const selected = ranking.find((candidate) => candidate.login === selectedLogin);
+  if (!selected)
+    return ranking;
+  return [selected, ...ranking.filter((candidate) => candidate.login !== selectedLogin)];
+}
 function nowMinusDays(days) {
   const date = new Date;
   date.setUTCDate(date.getUTCDate() - days);
@@ -71060,7 +71078,7 @@ async function runAction() {
   const activitySince = nowMinusDays(config.signalWindows.activityWindowDays);
   const recentAssignmentSince = nowMinusDays(config.signalWindows.recentAssignmentWindowDays);
   const commitPaths = [...new Set(scopedFiles.flatMap((file) => [file.path, renameMap[file.path]].filter(Boolean)))];
-  const commitSignals = await fetchCommitFamiliaritySignals(octokit, owner, repo, pr.baseRef, familiaritySince, commitPaths);
+  const commitSignals = await fetchCommitFamiliaritySignals(octokit, owner, repo, pr.defaultBranch, familiaritySince, commitPaths);
   const reviewSignals = await fetchReviewFamiliaritySignals(octokit, owner, repo, reviewSince, scopedFiles.map((file) => file.path));
   const preCandidatePool = buildCandidatePool({
     codeownersPresent: codeowners2.found,
@@ -71079,7 +71097,15 @@ async function runAction() {
       deletedUsers: []
     }
   });
-  const oooUsers = config.checkGitHubStatus ? await fetchLimitedAvailabilityUsers(octokit, preCandidatePool.candidates.map((candidate) => candidate.login)) : [];
+  let oooUsers = [];
+  if (config.checkGitHubStatus) {
+    try {
+      oooUsers = await fetchLimitedAvailabilityUsers(octokit, preCandidatePool.candidates.map((candidate) => candidate.login));
+    } catch (error) {
+      core3.warning(`Status-based availability disabled due to missing read:user or query failure: ${error instanceof Error ? error.message : String(error)}`);
+      oooUsers = [];
+    }
+  }
   const restoredActivity = await restoreActivityCache(owner, repo, config.signalWindows.activityWindowDays);
   const activitySignals = restoredActivity?.signalsByLogin ?? await fetchActivitySignals(octokit, owner, repo, activitySince, recentAssignmentSince, preCandidatePool.candidates.map((candidate) => candidate.login), teamMembersByRef);
   const candidatePool = buildCandidatePool({
@@ -71127,10 +71153,10 @@ async function runAction() {
   }
   outputs.rankedCandidatesJson = JSON.stringify(ranked.ranking);
   outputs.proposedAssignee = ranked.assignee;
-  outputs.explanation = formatExplanation(ranked.ranking);
-  core3.info(outputs.explanation);
-  await writeJobSummary(ranked.ranking, ranked.assignee, config);
   if (config.dryRun) {
+    outputs.explanation = formatExplanation(ranked.ranking);
+    core3.info(outputs.explanation);
+    await writeJobSummary(ranked.ranking, ranked.assignee, config);
     core3.info(`Dry run enabled. Proposed assignee: ${outputs.proposedAssignee}`);
     await saveActivityCache(owner, repo, {
       fetchedAt: new Date().toISOString(),
@@ -71153,6 +71179,10 @@ async function runAction() {
         });
         outputs.proposedAssignee = login;
         outputs.assignmentPerformed = true;
+        const explanationRanking = rankForSelectedAssignee(ranked.ranking, login);
+        outputs.explanation = formatExplanation(explanationRanking);
+        core3.info(outputs.explanation);
+        await writeJobSummary(explanationRanking, login, config);
         core3.info(`Assigned @${login} to pull request #${pr.number}.`);
         await saveActivityCache(owner, repo, {
           fetchedAt: new Date().toISOString(),

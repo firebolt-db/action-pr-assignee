@@ -60,6 +60,12 @@ function isNotAssignableError(error: unknown): boolean {
   );
 }
 
+function rankForSelectedAssignee<T extends { login: string }>(ranking: T[], selectedLogin: string): T[] {
+  const selected = ranking.find((candidate) => candidate.login === selectedLogin);
+  if (!selected) return ranking;
+  return [selected, ...ranking.filter((candidate) => candidate.login !== selectedLogin)];
+}
+
 function nowMinusDays(days: number): string {
   const date = new Date();
   date.setUTCDate(date.getUTCDate() - days);
@@ -173,7 +179,14 @@ export async function runAction(): Promise<ActionRunResult> {
   const recentAssignmentSince = nowMinusDays(config.signalWindows.recentAssignmentWindowDays);
 
   const commitPaths = [...new Set(scopedFiles.flatMap((file) => [file.path, renameMap[file.path]].filter(Boolean) as string[]))];
-  const commitSignals = await fetchCommitFamiliaritySignals(octokit, owner, repo, pr.baseRef, familiaritySince, commitPaths);
+  const commitSignals = await fetchCommitFamiliaritySignals(
+    octokit,
+    owner,
+    repo,
+    pr.defaultBranch,
+    familiaritySince,
+    commitPaths,
+  );
   const reviewSignals = await fetchReviewFamiliaritySignals(
     octokit,
     owner,
@@ -200,12 +213,22 @@ export async function runAction(): Promise<ActionRunResult> {
     },
   });
 
-  const oooUsers = config.checkGitHubStatus
-    ? await fetchLimitedAvailabilityUsers(
+  let oooUsers: string[] = [];
+  if (config.checkGitHubStatus) {
+    try {
+      oooUsers = await fetchLimitedAvailabilityUsers(
         octokit,
         preCandidatePool.candidates.map((candidate) => candidate.login),
-      )
-    : [];
+      );
+    } catch (error) {
+      core.warning(
+        `Status-based availability disabled due to missing read:user or query failure: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      oooUsers = [];
+    }
+  }
   const restoredActivity = await restoreActivityCache(owner, repo, config.signalWindows.activityWindowDays);
   const activitySignals =
     restoredActivity?.signalsByLogin ??
@@ -269,11 +292,11 @@ export async function runAction(): Promise<ActionRunResult> {
 
   outputs.rankedCandidatesJson = JSON.stringify(ranked.ranking);
   outputs.proposedAssignee = ranked.assignee;
-  outputs.explanation = formatExplanation(ranked.ranking);
-  core.info(outputs.explanation);
-  await writeJobSummary(ranked.ranking, ranked.assignee, config);
 
   if (config.dryRun) {
+    outputs.explanation = formatExplanation(ranked.ranking);
+    core.info(outputs.explanation);
+    await writeJobSummary(ranked.ranking, ranked.assignee, config);
     core.info(`Dry run enabled. Proposed assignee: ${outputs.proposedAssignee}`);
     await saveActivityCache(owner, repo, {
       fetchedAt: new Date().toISOString(),
@@ -298,6 +321,10 @@ export async function runAction(): Promise<ActionRunResult> {
 
         outputs.proposedAssignee = login;
         outputs.assignmentPerformed = true;
+        const explanationRanking = rankForSelectedAssignee(ranked.ranking, login);
+        outputs.explanation = formatExplanation(explanationRanking);
+        core.info(outputs.explanation);
+        await writeJobSummary(explanationRanking, login, config);
         core.info(`Assigned @${login} to pull request #${pr.number}.`);
         await saveActivityCache(owner, repo, {
           fetchedAt: new Date().toISOString(),
