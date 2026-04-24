@@ -451,3 +451,46 @@ export async function fetchLimitedAvailabilityUsers(
 
   return [...new Set(outOfOffice)];
 }
+
+export async function fetchDeletedUsers(
+  octokit: OctokitLike,
+  logins: string[],
+): Promise<string[]> {
+  const uniqueLogins = [...new Set(logins.map((login) => login.toLowerCase()))];
+  const deletedUsers: string[] = [];
+  const batchSize = 20;
+
+  for (let start = 0; start < uniqueLogins.length; start += batchSize) {
+    const batch = uniqueLogins.slice(start, start + batchSize);
+    const variableDefs = batch.map((_, index) => `$login${index}: String!`).join(', ');
+    const fields = batch
+      .map(
+        (_, index) => `
+      user${index}: user(login: $login${index}) {
+        login
+      }`,
+      )
+      .join('\n');
+
+    const query = `
+      query CandidateExistence(${variableDefs}) {
+        ${fields}
+      }
+    `;
+
+    const variables: Record<string, unknown> = {};
+    for (let index = 0; index < batch.length; index += 1) {
+      variables[`login${index}`] = batch[index];
+    }
+
+    const response = (await octokit.graphql(query, variables)) as Record<string, { login: string } | null>;
+    for (let index = 0; index < batch.length; index += 1) {
+      const key = `user${index}`;
+      if (response[key] == null) {
+        deletedUsers.push(batch[index]!);
+      }
+    }
+  }
+
+  return [...new Set(deletedUsers)];
+}

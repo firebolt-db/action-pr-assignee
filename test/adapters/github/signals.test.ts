@@ -3,6 +3,7 @@ import {
   expandTeamMembers,
   fetchActivitySignals,
   fetchCommitFamiliaritySignals,
+  fetchDeletedUsers,
   fetchLimitedAvailabilityUsers,
   fetchReviewFamiliaritySignals,
 } from '../../../src/adapters/github/signals.js';
@@ -187,5 +188,54 @@ describe('github signal adapters', () => {
     const result = await fetchLimitedAvailabilityUsers(octokit, ['alice', 'bob']);
 
     expect(result).toEqual(['alice']);
+  });
+
+  it('collects users that resolve to null', async () => {
+    const octokit = {
+      graphql: async () => ({
+        user0: { login: 'alice' },
+        user1: null,
+      }),
+      rest: {
+        pulls: {
+          listFiles: async () => ({ data: [] }),
+        },
+      },
+    } as OctokitLike;
+
+    const result = await fetchDeletedUsers(octokit, ['alice', 'ghost']);
+    expect(result).toEqual(['ghost']);
+  });
+
+  it('stops activity pagination when page is fully out of window', async () => {
+    let calls = 0;
+    const octokit = {
+      graphql: async () => {
+        calls += 1;
+        return {
+          repository: {
+            pullRequests: {
+              pageInfo: { hasNextPage: true, endCursor: 'cursor' },
+              nodes: [
+                {
+                  updatedAt: '2020-01-01T00:00:00Z',
+                  assignees: { nodes: [] },
+                  reviewRequests: { nodes: [] },
+                  timelineItems: { nodes: [] },
+                },
+              ],
+            },
+          },
+        };
+      },
+      rest: {
+        pulls: {
+          listFiles: async () => ({ data: [] }),
+        },
+      },
+    } as OctokitLike;
+
+    await fetchActivitySignals(octokit, 'o', 'r', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', ['alice']);
+    expect(calls).toBe(1);
   });
 });

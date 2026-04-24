@@ -59,6 +59,21 @@ function makeSource(overrides: Record<string, string> = {}) {
   };
 }
 
+function makeSourceWithDebugCollector(overrides: Record<string, string> = {}) {
+  const messages: string[] = [];
+  const source = makeSource(overrides);
+
+  return {
+    source: {
+      ...source,
+      debug(message: string): void {
+        messages.push(message);
+      },
+    },
+    messages,
+  };
+}
+
 describe('parseActionConfig', () => {
   it('parses valid defaults', () => {
     const config = parseActionConfig(makeSource());
@@ -128,5 +143,19 @@ describe('parseActionConfig', () => {
         }),
       ),
     ).toThrow('bot_login_patterns');
+  });
+
+  it('redacts token values in debug output', () => {
+    const { source, messages } = makeSourceWithDebugCollector({
+      github_token: 'ghs_secret_primary',
+      token_override: 'ghs_secret_override',
+    });
+
+    parseActionConfig(source);
+
+    const debugLog = messages.join('\n');
+    expect(debugLog).toContain('[REDACTED]');
+    expect(debugLog).not.toContain('ghs_secret_primary');
+    expect(debugLog).not.toContain('ghs_secret_override');
   });
 });

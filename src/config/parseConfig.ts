@@ -126,7 +126,13 @@ export function parseActionConfig(inputs: InputSource): ActionConfig {
     },
   };
 
-  inputs.debug(`Resolved config: ${JSON.stringify(config)}`);
+  const safeConfigForDebug = {
+    ...config,
+    githubToken: '[REDACTED]',
+    tokenOverride: config.tokenOverride ? '[REDACTED]' : '',
+    effectiveToken: '[REDACTED]',
+  };
+  inputs.debug(`Resolved config: ${JSON.stringify(safeConfigForDebug)}`);
 
   return config;
 }
