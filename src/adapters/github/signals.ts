@@ -53,6 +53,10 @@ const activityQuery = `
             nodes {
               requestedReviewer {
                 ... on User { login }
+                ... on Team {
+                  slug
+                  organization { login }
+                }
               }
             }
           }
@@ -151,10 +155,15 @@ export async function fetchActivitySignals(
         }
       }
 
+      const recentlyAssignedLoginsForPr = new Set<string>();
       for (const event of pr.timelineItems.nodes) {
         if (event.createdAt < recentAssignmentSinceIso) continue;
         const login = event.assignee?.login?.toLowerCase();
         if (!login || !candidateSet.has(login)) continue;
+        recentlyAssignedLoginsForPr.add(login);
+      }
+
+      for (const login of recentlyAssignedLoginsForPr) {
         ensureSnapshot(signalsByLogin, login).activity.recentAssignments += 1;
       }
     }

@@ -20,12 +20,19 @@ describe('github signal adapters', () => {
                 updatedAt: '2026-04-01T00:00:00Z',
                 assignees: { nodes: [{ login: 'Alice' }] },
                 reviewRequests: {
-                  nodes: [{ requestedReviewer: { login: 'Bob' } }],
+                  nodes: [
+                    { requestedReviewer: { login: 'Bob' } },
+                    { requestedReviewer: { slug: 'core', organization: { login: 'org' } } },
+                  ],
                 },
                 timelineItems: {
                   nodes: [
                     {
                       createdAt: '2026-04-02T00:00:00Z',
+                      assignee: { login: 'Alice' },
+                    },
+                    {
+                      createdAt: '2026-04-03T00:00:00Z',
                       assignee: { login: 'Alice' },
                     },
                   ],
@@ -49,11 +56,13 @@ describe('github signal adapters', () => {
       '2026-03-01T00:00:00Z',
       '2026-03-01T00:00:00Z',
       ['alice', 'bob'],
+      { 'org/core': ['alice'] },
     );
 
     expect(result.alice?.activity.openAssignedPrs).toBe(1);
     expect(result.alice?.activity.recentAssignments).toBe(1);
     expect(result.bob?.activity.pendingReviewRequests).toBe(1);
+    expect(result.alice?.activity.pendingReviewRequests).toBe(1);
   });
 
   it('counts distinct overlapping review familiarity', async () => {

@@ -29,5 +29,5 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           major="$(echo "$RELEASE_TAG" | sed -E 's/^(v[0-9]+).*/\1/')"
-          git tag -f "$major" "$RELEASE_TAG"
+          git tag -f "$major" HEAD
           git push -f origin "$major"

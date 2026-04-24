@@ -30,6 +30,36 @@ const assignMutation = `
   }
 `;
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getErrorStatus(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error == null) return undefined;
+  const maybeStatus = (error as { status?: unknown }).status;
+  if (typeof maybeStatus === 'number') return maybeStatus;
+  return undefined;
+}
+
+function isTransientAssignmentError(error: unknown): boolean {
+  const status = getErrorStatus(error);
+  if (status !== undefined) {
+    return status >= 500;
+  }
+
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return message.includes('timed out') || message.includes('econnreset') || message.includes('service unavailable');
+}
+
+function isNotAssignableError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    message.includes('not assignable') ||
+    message.includes('could not resolve to a user') ||
+    message.includes('must be a collaborator')
+  );
+}
+
 function nowMinusDays(days: number): string {
   const date = new Date();
   date.setUTCDate(date.getUTCDate() - days);
@@ -86,20 +116,30 @@ export async function runAction(): Promise<ActionRunResult> {
   }
 
   const codeowners = await fetchCodeownersAtBaseRef(octokit, owner, repo, pr.baseRef);
-  const resolveCodeowners = codeowners.content ? await buildCodeownersResolver(codeowners.content) : null;
+  const resolveCodeowners = codeowners.content
+    ? await buildCodeownersResolver(codeowners.content, config.fallbackPatterns)
+    : null;
 
   const teamRefSet = new Set<string>();
-  const ownershipFiles = scopedFiles.map((file) => {
-    const ownership = resolveCodeowners ? resolveCodeowners(file.path) : { directOwners: [], teamRefs: [] };
+  const scopedPathSet = new Set(scopedFiles.map((file) => file.path));
+  const ownershipFiles = filesByLoc.map((file) => {
+    const ownership = resolveCodeowners
+      ? resolveCodeowners(file.path)
+      : { directOwners: [], teamRefs: [], fallbackOwners: [], fallbackTeamRefs: [] };
     for (const teamRef of ownership.teamRefs) {
+      teamRefSet.add(teamRef);
+    }
+    for (const teamRef of ownership.fallbackTeamRefs) {
       teamRefSet.add(teamRef);
     }
 
     return {
       path: file.path,
-      loc: file.loc,
+      loc: scopedPathSet.has(file.path) ? file.loc : 0,
       directOwners: ownership.directOwners,
       teamRefs: ownership.teamRefs,
+      fallbackOwners: ownership.fallbackOwners,
+      fallbackTeamRefs: ownership.fallbackTeamRefs,
     };
   });
 
@@ -120,7 +160,7 @@ export async function runAction(): Promise<ActionRunResult> {
     loc: file.loc,
     directOwners: file.directOwners,
     teamMembers: file.teamRefs.flatMap((teamRef) => teamMembersByRef[teamRef] ?? []),
-    fallbackOwners: [],
+    fallbackOwners: [...file.fallbackOwners, ...file.fallbackTeamRefs.flatMap((teamRef) => teamMembersByRef[teamRef] ?? [])],
   }));
 
   const renameMap = pr.files.some((file) => file.changeType === 'RENAMED')
@@ -248,27 +288,57 @@ export async function runAction(): Promise<ActionRunResult> {
     const login = ranked.ranking[attempt]?.login;
     if (!login) break;
 
-    try {
-      await octokit.graphql(assignMutation, {
-        pullRequestId: pr.nodeId,
-        logins: [login],
-      });
+    let transientRetries = 0;
+    while (true) {
+      try {
+        await octokit.graphql(assignMutation, {
+          pullRequestId: pr.nodeId,
+          logins: [login],
+        });
 
-      outputs.proposedAssignee = login;
-      outputs.assignmentPerformed = true;
-      core.info(`Assigned @${login} to pull request #${pr.number}.`);
-      await saveActivityCache(owner, repo, {
-        fetchedAt: new Date().toISOString(),
-        activityWindowDays: config.signalWindows.activityWindowDays,
-        signalsByLogin: activitySignals,
-      });
-      return outputs;
-    } catch (error) {
-      core.warning(
-        `Assignment attempt failed for @${login}; trying next candidate. ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+        outputs.proposedAssignee = login;
+        outputs.assignmentPerformed = true;
+        core.info(`Assigned @${login} to pull request #${pr.number}.`);
+        await saveActivityCache(owner, repo, {
+          fetchedAt: new Date().toISOString(),
+          activityWindowDays: config.signalWindows.activityWindowDays,
+          signalsByLogin: activitySignals,
+        });
+        return outputs;
+      } catch (error) {
+        if (isTransientAssignmentError(error) && transientRetries < 1) {
+          transientRetries += 1;
+          core.warning(
+            `Transient assignment error for @${login}; retrying once in 2s. ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          await sleep(2000);
+          continue;
+        }
+
+        if (isNotAssignableError(error)) {
+          core.warning(
+            `Candidate @${login} is not assignable; trying next candidate. ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          break;
+        }
+
+        core.warning(
+          `Assignment failed for @${login}; aborting fallback to preserve deterministic winner. ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        outputs.assignmentPerformed = false;
+        await saveActivityCache(owner, repo, {
+          fetchedAt: new Date().toISOString(),
+          activityWindowDays: config.signalWindows.activityWindowDays,
+          signalsByLogin: activitySignals,
+        });
+        return outputs;
+      }
     }
   }
 
