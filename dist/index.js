@@ -70025,6 +70025,48 @@ function writeOutputs(outputs) {
   core.setOutput("explanation", outputs.explanation);
   core.setOutput("skipped_reason", outputs.skippedReason);
 }
+function formatExplanation(ranked) {
+  const winner = ranked[0];
+  if (!winner)
+    return "";
+  const lines = [
+    `${winner.login} - total ${winner.total}`,
+    `  direct ownership (${winner.tier}): +${winner.components.direct_ownership}`,
+    `  code familiarity: +${winner.components.code_familiarity}`,
+    `  review familiarity: +${winner.components.review_familiarity}`,
+    `  active load: -${winner.components.active_load}`,
+    `  pending reviews: -${winner.components.pending_review}`,
+    `  recent assignments: -${winner.components.recent_assignment}`
+  ];
+  const runnerUp = ranked[1];
+  if (runnerUp) {
+    lines.push(`runner-up: ${runnerUp.login} (${runnerUp.total})`);
+  }
+  return lines.join(`
+`);
+}
+async function writeJobSummary(ranked, selectedAssignee, config) {
+  const rows = ranked.slice(0, 10).map((candidate) => `| ${candidate.login} | ${candidate.total} | ${candidate.tier} | ${candidate.components.direct_ownership} | ${candidate.components.code_familiarity} | ${candidate.components.review_familiarity} | ${candidate.components.active_load} | ${candidate.components.pending_review} | ${candidate.components.recent_assignment} |`).join(`
+`);
+  const markdown = [
+    "## PR Assignee Decision",
+    "",
+    `Selected assignee: \`${selectedAssignee || "(none)"}\``,
+    "",
+    "| Candidate | Total | Tier | Ownership | Code Familiarity | Review Familiarity | Active Load | Pending Review | Recent Assignment |",
+    "| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    rows || "| (none) | 0 | none | 0 | 0 | 0 | 0 | 0 | 0 |",
+    "",
+    "### Resolved Weights",
+    "",
+    "```json",
+    JSON.stringify(config.scoreWeights, null, 2),
+    "```",
+    ""
+  ].join(`
+`);
+  await core.summary.addRaw(markdown, true).write();
+}
 
 // src/orchestrator/runAction.ts
 var core3 = __toESM(require_core(), 1);
@@ -70882,12 +70924,6 @@ function nowMinusDays(days) {
   date.setUTCDate(date.getUTCDate() - days);
   return date.toISOString();
 }
-function buildExplanation(assignee, total, runnerUp) {
-  if (!runnerUp) {
-    return `${assignee} - total ${total}`;
-  }
-  return `${assignee} - total ${total}; runner-up: ${runnerUp.login} (${runnerUp.total})`;
-}
 async function runAction() {
   const outputs = createEmptyOutputs();
   const config = parseActionConfig(core3);
@@ -71034,7 +71070,9 @@ async function runAction() {
   }
   outputs.rankedCandidatesJson = JSON.stringify(ranked.ranking);
   outputs.proposedAssignee = ranked.assignee;
-  outputs.explanation = buildExplanation(ranked.assignee, ranked.ranking[0]?.total ?? 0, ranked.ranking[1] ? { login: ranked.ranking[1].login, total: ranked.ranking[1].total } : null);
+  outputs.explanation = formatExplanation(ranked.ranking);
+  core3.info(outputs.explanation);
+  await writeJobSummary(ranked.ranking, ranked.assignee, config);
   if (config.dryRun) {
     core3.info(`Dry run enabled. Proposed assignee: ${outputs.proposedAssignee}`);
     await saveActivityCache(owner, repo, {
