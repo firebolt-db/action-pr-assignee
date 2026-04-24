@@ -14,7 +14,13 @@ import {
 } from '../adapters/github/index.js';
 import { parseActionConfig } from '../config/parseConfig.js';
 import { restoreActivityCache, saveActivityCache } from '../cache/index.js';
-import { buildCandidatePool, rankCandidates } from '../engine/index.js';
+import {
+  buildCandidatePool,
+  rankCandidates,
+  type BuildCandidatePoolResult,
+  type Candidate,
+  type RankCandidatesResult,
+} from '../engine/index.js';
 import { createEmptyOutputs, formatExplanation, writeJobSummary } from '../output.js';
 import type { ActionRunResult } from '../types.js';
 import { buildCodeownersResolver } from './codeowners.js';
@@ -73,47 +79,120 @@ function nowMinusDays(days: number): string {
   return date.toISOString();
 }
 
-export async function runAction(): Promise<ActionRunResult> {
-  const outputs = createEmptyOutputs();
-  const config = parseActionConfig(core);
-  const octokit = github.getOctokit(config.effectiveToken) as unknown as OctokitLike;
+interface RunActionDeps {
+  core: {
+    getInput: (name: string, options?: { required?: boolean }) => string;
+    getBooleanInput: (name: string) => boolean;
+    debug: (message: string) => void;
+    info: (message: string) => void;
+    warning: (message: string | Error) => void;
+  };
+  githubContext: typeof github.context;
+  getOctokit: (token: string) => OctokitLike;
+  adapters: {
+    fetchPrCoreData: typeof fetchPrCoreData;
+    fetchCodeownersAtBaseRef: typeof fetchCodeownersAtBaseRef;
+    fetchRenamePreviousPathByCurrentFilename: typeof fetchRenamePreviousPathByCurrentFilename;
+    expandTeamMembers: typeof expandTeamMembers;
+    fetchCommitFamiliaritySignals: typeof fetchCommitFamiliaritySignals;
+    fetchReviewFamiliaritySignals: typeof fetchReviewFamiliaritySignals;
+    fetchDeletedUsers: typeof fetchDeletedUsers;
+    fetchLimitedAvailabilityUsers: typeof fetchLimitedAvailabilityUsers;
+    fetchActivitySignals: typeof fetchActivitySignals;
+  };
+  cache: {
+    restoreActivityCache: typeof restoreActivityCache;
+    saveActivityCache: typeof saveActivityCache;
+  };
+  buildCodeownersResolver: typeof buildCodeownersResolver;
+  rankCandidates: typeof rankCandidates;
+  buildCandidatePool: typeof buildCandidatePool;
+  writeJobSummary: typeof writeJobSummary;
+  sleep: (ms: number) => Promise<void>;
+}
 
-  const owner = github.context.repo.owner;
-  const repo = github.context.repo.repo;
-  const pullNumber = github.context.payload.pull_request?.number;
+const defaultDeps: RunActionDeps = {
+  core,
+  githubContext: github.context,
+  getOctokit: (token) => github.getOctokit(token) as unknown as OctokitLike,
+  adapters: {
+    fetchPrCoreData,
+    fetchCodeownersAtBaseRef,
+    fetchRenamePreviousPathByCurrentFilename,
+    expandTeamMembers,
+    fetchCommitFamiliaritySignals,
+    fetchReviewFamiliaritySignals,
+    fetchDeletedUsers,
+    fetchLimitedAvailabilityUsers,
+    fetchActivitySignals,
+  },
+  cache: {
+    restoreActivityCache,
+    saveActivityCache,
+  },
+  buildCodeownersResolver,
+  rankCandidates,
+  buildCandidatePool,
+  writeJobSummary,
+  sleep,
+};
+
+export async function runAction(partialDeps: Partial<RunActionDeps> = {}): Promise<ActionRunResult> {
+  const deps: RunActionDeps = {
+    ...defaultDeps,
+    ...partialDeps,
+    adapters: {
+      ...defaultDeps.adapters,
+      ...(partialDeps.adapters ?? {}),
+    },
+    cache: {
+      ...defaultDeps.cache,
+      ...(partialDeps.cache ?? {}),
+    },
+  };
+
+  const outputs = createEmptyOutputs();
+  const config = parseActionConfig(deps.core);
+  const octokit = deps.getOctokit(config.effectiveToken);
+
+  const owner = deps.githubContext.repo.owner;
+  const repo = deps.githubContext.repo.repo;
+  const pullNumber = deps.githubContext.payload.pull_request?.number;
   if (!owner || !repo || typeof pullNumber !== 'number') {
     throw new Error('Malformed event payload: missing repository owner/name or pull request number.');
   }
 
   let pr: Awaited<ReturnType<typeof fetchPrCoreData>>;
   try {
-    pr = await fetchPrCoreData(octokit, owner, repo, pullNumber);
+    pr = await deps.adapters.fetchPrCoreData(octokit, owner, repo, pullNumber);
   } catch (error) {
-    core.warning(`Unable to fetch PR core data, skipping assignment: ${error instanceof Error ? error.message : String(error)}`);
+    deps.core.warning(
+      `Unable to fetch PR core data, skipping assignment: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return outputs;
   }
 
   if (pr.isDraft) {
     outputs.skippedReason = 'draft';
-    core.info('Skipping assignment: pull request is draft.');
+    deps.core.info('Skipping assignment: pull request is draft.');
     return outputs;
   }
 
   if (pr.assignees.length > 0) {
     outputs.skippedReason = 'already_assigned';
-    core.info('Skipping assignment: pull request already has assignees.');
+    deps.core.info('Skipping assignment: pull request already has assignees.');
     return outputs;
   }
 
   if (config.optOutLabel && pr.labels.includes(config.optOutLabel)) {
     outputs.skippedReason = 'opted_out';
-    core.info(`Skipping assignment: opt-out label "${config.optOutLabel}" is present.`);
+    deps.core.info(`Skipping assignment: opt-out label "${config.optOutLabel}" is present.`);
     return outputs;
   }
 
   if (pr.baseOwner !== pr.headOwner || pr.baseRepo !== pr.headRepo) {
     outputs.skippedReason = 'fork_pr';
-    core.info('Skipping assignment: pull request originates from a fork.');
+    deps.core.info('Skipping assignment: pull request originates from a fork.');
     return outputs;
   }
 
@@ -125,23 +204,30 @@ export async function runAction(): Promise<ActionRunResult> {
     .sort((a, b) => b.loc - a.loc);
   const scopedFiles = filesByLoc.slice(0, 200);
   if (pr.files.length > 200) {
-    core.warning(`PR touches ${pr.files.length} files; familiarity and ownership computed on top 200 by LOC.`);
+    deps.core.warning(`PR touches ${pr.files.length} files; familiarity and ownership computed on top 200 by LOC.`);
   }
 
   const codeowners = await (async () => {
     try {
-      return await fetchCodeownersAtBaseRef(octokit, owner, repo, pr.baseRef);
+      return await deps.adapters.fetchCodeownersAtBaseRef(octokit, owner, repo, pr.baseRef);
     } catch (error) {
-      core.warning(`Unable to fetch CODEOWNERS at base ref, continuing without ownership signal: ${error instanceof Error ? error.message : String(error)}`);
+      deps.core.warning(
+        `Unable to fetch CODEOWNERS at base ref, continuing without ownership signal: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
       return { found: false, path: null, content: null } as const;
     }
   })();
+  if (!codeowners.found) {
+    deps.core.warning('CODEOWNERS not found; seeding candidates from familiarity and suggested reviewers.');
+  }
   const resolveCodeowners = codeowners.content
     ? await (async () => {
         try {
-          return await buildCodeownersResolver(codeowners.content!, config.fallbackPatterns);
+          return await deps.buildCodeownersResolver(codeowners.content!, config.fallbackPatterns);
         } catch (error) {
-          core.warning(
+          deps.core.warning(
             `Unable to parse CODEOWNERS content, continuing without ownership signal: ${
               error instanceof Error ? error.message : String(error)
             }`,
@@ -179,9 +265,11 @@ export async function runAction(): Promise<ActionRunResult> {
     const [org, slug] = teamRef.split('/');
     if (!org || !slug) continue;
     try {
-      teamMembersByRef[teamRef] = await expandTeamMembers(octokit, org, slug);
+      teamMembersByRef[teamRef] = await deps.adapters.expandTeamMembers(octokit, org, slug);
     } catch (error) {
-      core.warning(`Team expansion failed for @${teamRef}: ${error instanceof Error ? error.message : String(error)}`);
+      deps.core.warning(
+        `Team expansion failed for @${teamRef}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       teamMembersByRef[teamRef] = [];
     }
   }
@@ -197,9 +285,13 @@ export async function runAction(): Promise<ActionRunResult> {
   const renameMap = pr.files.some((file) => file.changeType === 'RENAMED')
     ? await (async () => {
         try {
-          return await fetchRenamePreviousPathByCurrentFilename(octokit, owner, repo, pr.number);
+          return await deps.adapters.fetchRenamePreviousPathByCurrentFilename(octokit, owner, repo, pr.number);
         } catch (error) {
-          core.warning(`Rename recovery unavailable, continuing without previous paths: ${error instanceof Error ? error.message : String(error)}`);
+          deps.core.warning(
+            `Rename recovery unavailable, continuing without previous paths: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
           return {};
         }
       })()
@@ -213,7 +305,7 @@ export async function runAction(): Promise<ActionRunResult> {
   const commitPaths = [...new Set(scopedFiles.flatMap((file) => [file.path, renameMap[file.path]].filter(Boolean) as string[]))];
   const commitSignals = await (async () => {
     try {
-      return await fetchCommitFamiliaritySignals(
+      return await deps.adapters.fetchCommitFamiliaritySignals(
         octokit,
         owner,
         repo,
@@ -222,13 +314,15 @@ export async function runAction(): Promise<ActionRunResult> {
         commitPaths,
       );
     } catch (error) {
-      core.warning(`Commit familiarity signal unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
+      deps.core.warning(
+        `Commit familiarity signal unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return {} as Record<string, number>;
     }
   })();
   const reviewSignals = await (async () => {
     try {
-      return await fetchReviewFamiliaritySignals(
+      return await deps.adapters.fetchReviewFamiliaritySignals(
         octokit,
         owner,
         repo,
@@ -236,12 +330,14 @@ export async function runAction(): Promise<ActionRunResult> {
         scopedFiles.map((file) => file.path),
       );
     } catch (error) {
-      core.warning(`Review familiarity signal unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
+      deps.core.warning(
+        `Review familiarity signal unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return {} as Record<string, number>;
     }
   })();
 
-  const preCandidatePool = buildCandidatePool({
+  const preCandidatePool: BuildCandidatePoolResult = deps.buildCandidatePool({
     codeownersPresent: codeowners.found,
     files: candidateFiles,
     signalSeeds: {
@@ -261,24 +357,26 @@ export async function runAction(): Promise<ActionRunResult> {
 
   let deletedUsers: string[] = [];
   try {
-    deletedUsers = await fetchDeletedUsers(
+    deletedUsers = await deps.adapters.fetchDeletedUsers(
       octokit,
       preCandidatePool.candidates.map((candidate) => candidate.login),
     );
   } catch (error) {
-    core.warning(`Deleted-user filter unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
+    deps.core.warning(
+      `Deleted-user filter unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`,
+    );
     deletedUsers = [];
   }
 
   let oooUsers: string[] = [];
   if (config.checkGitHubStatus) {
     try {
-      oooUsers = await fetchLimitedAvailabilityUsers(
+      oooUsers = await deps.adapters.fetchLimitedAvailabilityUsers(
         octokit,
         preCandidatePool.candidates.map((candidate) => candidate.login),
       );
     } catch (error) {
-      core.warning(
+      deps.core.warning(
         `Status-based availability disabled due to missing read:user or query failure: ${
           error instanceof Error ? error.message : String(error)
         }`,
@@ -286,27 +384,34 @@ export async function runAction(): Promise<ActionRunResult> {
       oooUsers = [];
     }
   }
-  const restoredActivity = await restoreActivityCache(owner, repo, config.signalWindows.activityWindowDays);
+  const restoredActivity = await deps.cache.restoreActivityCache(
+    owner,
+    repo,
+    config.signalWindows.activityWindowDays,
+  );
   const activitySignals =
     restoredActivity?.signalsByLogin ??
     (await (async () => {
       try {
-        return await fetchActivitySignals(
+        return await deps.adapters.fetchActivitySignals(
           octokit,
           owner,
           repo,
           activitySince,
           recentAssignmentSince,
-          preCandidatePool.candidates.map((candidate) => candidate.login),
           teamMembersByRef,
         );
       } catch (error) {
-        core.warning(`Activity/workload signal unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
+        deps.core.warning(
+          `Activity/workload signal unavailable, continuing without it: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
         return {};
       }
     })());
 
-  const candidatePool = buildCandidatePool({
+  const candidatePool: BuildCandidatePoolResult = deps.buildCandidatePool({
     codeownersPresent: codeowners.found,
     files: candidateFiles,
     signalSeeds: {
@@ -326,13 +431,20 @@ export async function runAction(): Promise<ActionRunResult> {
 
   if (candidatePool.candidates.length === 0) {
     outputs.skippedReason = 'empty_candidate_pool';
-    core.warning('No candidates remain after applying candidate filters.');
+    deps.core.warning('No candidates remain after applying candidate filters.');
     return outputs;
   }
+  if (candidatePool.usedSignalFallback) {
+    deps.core.warning(
+      codeowners.found
+        ? 'CODEOWNERS candidates were filtered out; seeding candidate pool from familiarity signals.'
+        : 'Candidate pool seeded from familiarity/suggested reviewer signals because CODEOWNERS is unavailable.',
+    );
+  }
 
-  let ranked;
+  let ranked: RankCandidatesResult;
   try {
-    ranked = rankCandidates({
+    ranked = deps.rankCandidates({
       candidates: candidatePool.candidates,
       weights: config.scoreWeights,
       signalsByLogin: Object.fromEntries(
@@ -350,7 +462,7 @@ export async function runAction(): Promise<ActionRunResult> {
     });
   } catch (error) {
     outputs.skippedReason = 'empty_candidate_pool';
-    core.warning(error instanceof Error ? error.message : String(error));
+    deps.core.warning(error instanceof Error ? error.message : String(error));
     return outputs;
   }
 
@@ -359,10 +471,10 @@ export async function runAction(): Promise<ActionRunResult> {
 
   if (config.dryRun) {
     outputs.explanation = formatExplanation(ranked.ranking);
-    core.info(outputs.explanation);
-    await writeJobSummary(ranked.ranking, ranked.assignee, config);
-    core.info(`Dry run enabled. Proposed assignee: ${outputs.proposedAssignee}`);
-    await saveActivityCache(owner, repo, {
+    deps.core.info(outputs.explanation);
+    await deps.writeJobSummary(ranked.ranking, ranked.assignee, config);
+    deps.core.info(`Dry run enabled. Proposed assignee: ${outputs.proposedAssignee}`);
+    await deps.cache.saveActivityCache(owner, repo, {
       fetchedAt: new Date().toISOString(),
       activityWindowDays: config.signalWindows.activityWindowDays,
       signalsByLogin: activitySignals,
@@ -387,10 +499,10 @@ export async function runAction(): Promise<ActionRunResult> {
         outputs.assignmentPerformed = true;
         const explanationRanking = rankForSelectedAssignee(ranked.ranking, login);
         outputs.explanation = formatExplanation(explanationRanking);
-        core.info(outputs.explanation);
-        await writeJobSummary(explanationRanking, login, config);
-        core.info(`Assigned @${login} to pull request #${pr.number}.`);
-        await saveActivityCache(owner, repo, {
+        deps.core.info(outputs.explanation);
+        await deps.writeJobSummary(explanationRanking, login, config);
+        deps.core.info(`Assigned @${login} to pull request #${pr.number}.`);
+        await deps.cache.saveActivityCache(owner, repo, {
           fetchedAt: new Date().toISOString(),
           activityWindowDays: config.signalWindows.activityWindowDays,
           signalsByLogin: activitySignals,
@@ -399,17 +511,17 @@ export async function runAction(): Promise<ActionRunResult> {
       } catch (error) {
         if (isTransientAssignmentError(error) && transientRetries < 1) {
           transientRetries += 1;
-          core.warning(
+          deps.core.warning(
             `Transient assignment error for @${login}; retrying once in 2s. ${
               error instanceof Error ? error.message : String(error)
             }`,
           );
-          await sleep(2000);
+          await deps.sleep(2000);
           continue;
         }
 
         if (isNotAssignableError(error)) {
-          core.warning(
+          deps.core.warning(
             `Candidate @${login} is not assignable; trying next candidate. ${
               error instanceof Error ? error.message : String(error)
             }`,
@@ -417,7 +529,7 @@ export async function runAction(): Promise<ActionRunResult> {
           break;
         }
 
-        core.warning(
+        deps.core.warning(
           `Assignment failed for @${login}; aborting fallback to preserve deterministic winner. ${
             error instanceof Error ? error.message : String(error)
           }`,
@@ -429,7 +541,7 @@ export async function runAction(): Promise<ActionRunResult> {
   }
 
   outputs.assignmentPerformed = false;
-  core.warning('All assignment attempts failed. Proceeding without assignee.');
+  deps.core.warning('All assignment attempts failed. Proceeding without assignee.');
   return outputs;
 
 }

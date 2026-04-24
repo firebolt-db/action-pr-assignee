@@ -82,11 +82,9 @@ export async function fetchActivitySignals(
   repo: string,
   activitySinceIso: string,
   recentAssignmentSinceIso: string,
-  candidates: string[],
   teamMembersByTeamSlug: Record<string, string[]> = {},
 ): Promise<SignalsByLogin> {
   const signalsByLogin: SignalsByLogin = {};
-  const candidateSet = new Set(candidates.map((login) => login.toLowerCase()));
   const teamMembersCache: Record<string, string[]> = { ...teamMembersByTeamSlug };
 
   let cursor: string | null = null;
@@ -131,7 +129,6 @@ export async function fetchActivitySignals(
 
       const assignees = pr.assignees.nodes.map((node) => node.login.toLowerCase());
       for (const assignee of assignees) {
-        if (!candidateSet.has(assignee)) continue;
         ensureSnapshot(signalsByLogin, assignee).activity.openAssignedPrs += 1;
       }
 
@@ -141,9 +138,7 @@ export async function fetchActivitySignals(
 
         if (reviewer.login) {
           const login = reviewer.login.toLowerCase();
-          if (candidateSet.has(login)) {
-            ensureSnapshot(signalsByLogin, login).activity.pendingReviewRequests += 1;
-          }
+          ensureSnapshot(signalsByLogin, login).activity.pendingReviewRequests += 1;
           continue;
         }
 
@@ -164,7 +159,6 @@ export async function fetchActivitySignals(
           const members = teamMembersCache[teamKey] ?? [];
           for (const memberLogin of members) {
             const login = memberLogin.toLowerCase();
-            if (!candidateSet.has(login)) continue;
             ensureSnapshot(signalsByLogin, login).activity.pendingReviewRequests += 1;
           }
         }
@@ -174,7 +168,7 @@ export async function fetchActivitySignals(
       for (const event of pr.timelineItems.nodes) {
         if (event.createdAt < recentAssignmentSinceIso) continue;
         const login = event.assignee?.login?.toLowerCase();
-        if (!login || !candidateSet.has(login)) continue;
+        if (!login) continue;
         recentlyAssignedLoginsForPr.add(login);
       }
 

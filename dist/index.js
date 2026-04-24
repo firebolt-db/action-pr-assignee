@@ -70274,9 +70274,8 @@ var activityQuery = `
     }
   }
 `;
-async function fetchActivitySignals(octokit, owner, repo, activitySinceIso, recentAssignmentSinceIso, candidates, teamMembersByTeamSlug = {}) {
+async function fetchActivitySignals(octokit, owner, repo, activitySinceIso, recentAssignmentSinceIso, teamMembersByTeamSlug = {}) {
   const signalsByLogin = {};
-  const candidateSet = new Set(candidates.map((login) => login.toLowerCase()));
   const teamMembersCache = { ...teamMembersByTeamSlug };
   let cursor = null;
   while (true) {
@@ -70297,8 +70296,6 @@ async function fetchActivitySignals(octokit, owner, repo, activitySinceIso, rece
       pageHasRecentPr = true;
       const assignees = pr.assignees.nodes.map((node) => node.login.toLowerCase());
       for (const assignee of assignees) {
-        if (!candidateSet.has(assignee))
-          continue;
         ensureSnapshot(signalsByLogin, assignee).activity.openAssignedPrs += 1;
       }
       for (const reviewRequest of pr.reviewRequests.nodes) {
@@ -70307,9 +70304,7 @@ async function fetchActivitySignals(octokit, owner, repo, activitySinceIso, rece
           continue;
         if (reviewer.login) {
           const login = reviewer.login.toLowerCase();
-          if (candidateSet.has(login)) {
-            ensureSnapshot(signalsByLogin, login).activity.pendingReviewRequests += 1;
-          }
+          ensureSnapshot(signalsByLogin, login).activity.pendingReviewRequests += 1;
           continue;
         }
         if (reviewer.slug && reviewer.organization?.login) {
@@ -70324,8 +70319,6 @@ async function fetchActivitySignals(octokit, owner, repo, activitySinceIso, rece
           const members = teamMembersCache[teamKey] ?? [];
           for (const memberLogin of members) {
             const login = memberLogin.toLowerCase();
-            if (!candidateSet.has(login))
-              continue;
             ensureSnapshot(signalsByLogin, login).activity.pendingReviewRequests += 1;
           }
         }
@@ -70335,7 +70328,7 @@ async function fetchActivitySignals(octokit, owner, repo, activitySinceIso, rece
         if (event.createdAt < recentAssignmentSinceIso)
           continue;
         const login = event.assignee?.login?.toLowerCase();
-        if (!login || !candidateSet.has(login))
+        if (!login)
           continue;
         recentlyAssignedLoginsForPr.add(login);
       }
@@ -71030,41 +71023,78 @@ function nowMinusDays(days) {
   date.setUTCDate(date.getUTCDate() - days);
   return date.toISOString();
 }
-async function runAction() {
+var defaultDeps = {
+  core: core3,
+  githubContext: github.context,
+  getOctokit: (token) => github.getOctokit(token),
+  adapters: {
+    fetchPrCoreData,
+    fetchCodeownersAtBaseRef,
+    fetchRenamePreviousPathByCurrentFilename,
+    expandTeamMembers,
+    fetchCommitFamiliaritySignals,
+    fetchReviewFamiliaritySignals,
+    fetchDeletedUsers,
+    fetchLimitedAvailabilityUsers,
+    fetchActivitySignals
+  },
+  cache: {
+    restoreActivityCache,
+    saveActivityCache
+  },
+  buildCodeownersResolver,
+  rankCandidates,
+  buildCandidatePool,
+  writeJobSummary,
+  sleep
+};
+async function runAction(partialDeps = {}) {
+  const deps = {
+    ...defaultDeps,
+    ...partialDeps,
+    adapters: {
+      ...defaultDeps.adapters,
+      ...partialDeps.adapters ?? {}
+    },
+    cache: {
+      ...defaultDeps.cache,
+      ...partialDeps.cache ?? {}
+    }
+  };
   const outputs = createEmptyOutputs();
-  const config = parseActionConfig(core3);
-  const octokit = github.getOctokit(config.effectiveToken);
-  const owner = github.context.repo.owner;
-  const repo = github.context.repo.repo;
-  const pullNumber = github.context.payload.pull_request?.number;
+  const config = parseActionConfig(deps.core);
+  const octokit = deps.getOctokit(config.effectiveToken);
+  const owner = deps.githubContext.repo.owner;
+  const repo = deps.githubContext.repo.repo;
+  const pullNumber = deps.githubContext.payload.pull_request?.number;
   if (!owner || !repo || typeof pullNumber !== "number") {
     throw new Error("Malformed event payload: missing repository owner/name or pull request number.");
   }
   let pr;
   try {
-    pr = await fetchPrCoreData(octokit, owner, repo, pullNumber);
+    pr = await deps.adapters.fetchPrCoreData(octokit, owner, repo, pullNumber);
   } catch (error) {
-    core3.warning(`Unable to fetch PR core data, skipping assignment: ${error instanceof Error ? error.message : String(error)}`);
+    deps.core.warning(`Unable to fetch PR core data, skipping assignment: ${error instanceof Error ? error.message : String(error)}`);
     return outputs;
   }
   if (pr.isDraft) {
     outputs.skippedReason = "draft";
-    core3.info("Skipping assignment: pull request is draft.");
+    deps.core.info("Skipping assignment: pull request is draft.");
     return outputs;
   }
   if (pr.assignees.length > 0) {
     outputs.skippedReason = "already_assigned";
-    core3.info("Skipping assignment: pull request already has assignees.");
+    deps.core.info("Skipping assignment: pull request already has assignees.");
     return outputs;
   }
   if (config.optOutLabel && pr.labels.includes(config.optOutLabel)) {
     outputs.skippedReason = "opted_out";
-    core3.info(`Skipping assignment: opt-out label "${config.optOutLabel}" is present.`);
+    deps.core.info(`Skipping assignment: opt-out label "${config.optOutLabel}" is present.`);
     return outputs;
   }
   if (pr.baseOwner !== pr.headOwner || pr.baseRepo !== pr.headRepo) {
     outputs.skippedReason = "fork_pr";
-    core3.info("Skipping assignment: pull request originates from a fork.");
+    deps.core.info("Skipping assignment: pull request originates from a fork.");
     return outputs;
   }
   const filesByLoc = [...pr.files].map((file) => ({
@@ -71073,21 +71103,24 @@ async function runAction() {
   })).sort((a, b) => b.loc - a.loc);
   const scopedFiles = filesByLoc.slice(0, 200);
   if (pr.files.length > 200) {
-    core3.warning(`PR touches ${pr.files.length} files; familiarity and ownership computed on top 200 by LOC.`);
+    deps.core.warning(`PR touches ${pr.files.length} files; familiarity and ownership computed on top 200 by LOC.`);
   }
   const codeowners2 = await (async () => {
     try {
-      return await fetchCodeownersAtBaseRef(octokit, owner, repo, pr.baseRef);
+      return await deps.adapters.fetchCodeownersAtBaseRef(octokit, owner, repo, pr.baseRef);
     } catch (error) {
-      core3.warning(`Unable to fetch CODEOWNERS at base ref, continuing without ownership signal: ${error instanceof Error ? error.message : String(error)}`);
+      deps.core.warning(`Unable to fetch CODEOWNERS at base ref, continuing without ownership signal: ${error instanceof Error ? error.message : String(error)}`);
       return { found: false, path: null, content: null };
     }
   })();
+  if (!codeowners2.found) {
+    deps.core.warning("CODEOWNERS not found; seeding candidates from familiarity and suggested reviewers.");
+  }
   const resolveCodeowners = codeowners2.content ? await (async () => {
     try {
-      return await buildCodeownersResolver(codeowners2.content, config.fallbackPatterns);
+      return await deps.buildCodeownersResolver(codeowners2.content, config.fallbackPatterns);
     } catch (error) {
-      core3.warning(`Unable to parse CODEOWNERS content, continuing without ownership signal: ${error instanceof Error ? error.message : String(error)}`);
+      deps.core.warning(`Unable to parse CODEOWNERS content, continuing without ownership signal: ${error instanceof Error ? error.message : String(error)}`);
       return null;
     }
   })() : null;
@@ -71116,9 +71149,9 @@ async function runAction() {
     if (!org || !slug)
       continue;
     try {
-      teamMembersByRef[teamRef] = await expandTeamMembers(octokit, org, slug);
+      teamMembersByRef[teamRef] = await deps.adapters.expandTeamMembers(octokit, org, slug);
     } catch (error) {
-      core3.warning(`Team expansion failed for @${teamRef}: ${error instanceof Error ? error.message : String(error)}`);
+      deps.core.warning(`Team expansion failed for @${teamRef}: ${error instanceof Error ? error.message : String(error)}`);
       teamMembersByRef[teamRef] = [];
     }
   }
@@ -71131,9 +71164,9 @@ async function runAction() {
   }));
   const renameMap = pr.files.some((file) => file.changeType === "RENAMED") ? await (async () => {
     try {
-      return await fetchRenamePreviousPathByCurrentFilename(octokit, owner, repo, pr.number);
+      return await deps.adapters.fetchRenamePreviousPathByCurrentFilename(octokit, owner, repo, pr.number);
     } catch (error) {
-      core3.warning(`Rename recovery unavailable, continuing without previous paths: ${error instanceof Error ? error.message : String(error)}`);
+      deps.core.warning(`Rename recovery unavailable, continuing without previous paths: ${error instanceof Error ? error.message : String(error)}`);
       return {};
     }
   })() : {};
@@ -71144,21 +71177,21 @@ async function runAction() {
   const commitPaths = [...new Set(scopedFiles.flatMap((file) => [file.path, renameMap[file.path]].filter(Boolean)))];
   const commitSignals = await (async () => {
     try {
-      return await fetchCommitFamiliaritySignals(octokit, owner, repo, pr.defaultBranch, familiaritySince, commitPaths);
+      return await deps.adapters.fetchCommitFamiliaritySignals(octokit, owner, repo, pr.defaultBranch, familiaritySince, commitPaths);
     } catch (error) {
-      core3.warning(`Commit familiarity signal unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
+      deps.core.warning(`Commit familiarity signal unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
       return {};
     }
   })();
   const reviewSignals = await (async () => {
     try {
-      return await fetchReviewFamiliaritySignals(octokit, owner, repo, reviewSince, scopedFiles.map((file) => file.path));
+      return await deps.adapters.fetchReviewFamiliaritySignals(octokit, owner, repo, reviewSince, scopedFiles.map((file) => file.path));
     } catch (error) {
-      core3.warning(`Review familiarity signal unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
+      deps.core.warning(`Review familiarity signal unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
       return {};
     }
   })();
-  const preCandidatePool = buildCandidatePool({
+  const preCandidatePool = deps.buildCandidatePool({
     codeownersPresent: codeowners2.found,
     files: candidateFiles,
     signalSeeds: {
@@ -71177,30 +71210,30 @@ async function runAction() {
   });
   let deletedUsers = [];
   try {
-    deletedUsers = await fetchDeletedUsers(octokit, preCandidatePool.candidates.map((candidate) => candidate.login));
+    deletedUsers = await deps.adapters.fetchDeletedUsers(octokit, preCandidatePool.candidates.map((candidate) => candidate.login));
   } catch (error) {
-    core3.warning(`Deleted-user filter unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
+    deps.core.warning(`Deleted-user filter unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
     deletedUsers = [];
   }
   let oooUsers = [];
   if (config.checkGitHubStatus) {
     try {
-      oooUsers = await fetchLimitedAvailabilityUsers(octokit, preCandidatePool.candidates.map((candidate) => candidate.login));
+      oooUsers = await deps.adapters.fetchLimitedAvailabilityUsers(octokit, preCandidatePool.candidates.map((candidate) => candidate.login));
     } catch (error) {
-      core3.warning(`Status-based availability disabled due to missing read:user or query failure: ${error instanceof Error ? error.message : String(error)}`);
+      deps.core.warning(`Status-based availability disabled due to missing read:user or query failure: ${error instanceof Error ? error.message : String(error)}`);
       oooUsers = [];
     }
   }
-  const restoredActivity = await restoreActivityCache(owner, repo, config.signalWindows.activityWindowDays);
+  const restoredActivity = await deps.cache.restoreActivityCache(owner, repo, config.signalWindows.activityWindowDays);
   const activitySignals = restoredActivity?.signalsByLogin ?? await (async () => {
     try {
-      return await fetchActivitySignals(octokit, owner, repo, activitySince, recentAssignmentSince, preCandidatePool.candidates.map((candidate) => candidate.login), teamMembersByRef);
+      return await deps.adapters.fetchActivitySignals(octokit, owner, repo, activitySince, recentAssignmentSince, teamMembersByRef);
     } catch (error) {
-      core3.warning(`Activity/workload signal unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
+      deps.core.warning(`Activity/workload signal unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
       return {};
     }
   })();
-  const candidatePool = buildCandidatePool({
+  const candidatePool = deps.buildCandidatePool({
     codeownersPresent: codeowners2.found,
     files: candidateFiles,
     signalSeeds: {
@@ -71219,12 +71252,15 @@ async function runAction() {
   });
   if (candidatePool.candidates.length === 0) {
     outputs.skippedReason = "empty_candidate_pool";
-    core3.warning("No candidates remain after applying candidate filters.");
+    deps.core.warning("No candidates remain after applying candidate filters.");
     return outputs;
+  }
+  if (candidatePool.usedSignalFallback) {
+    deps.core.warning(codeowners2.found ? "CODEOWNERS candidates were filtered out; seeding candidate pool from familiarity signals." : "Candidate pool seeded from familiarity/suggested reviewer signals because CODEOWNERS is unavailable.");
   }
   let ranked;
   try {
-    ranked = rankCandidates({
+    ranked = deps.rankCandidates({
       candidates: candidatePool.candidates,
       weights: config.scoreWeights,
       signalsByLogin: Object.fromEntries(candidatePool.candidates.map((candidate) => [
@@ -71240,17 +71276,17 @@ async function runAction() {
     });
   } catch (error) {
     outputs.skippedReason = "empty_candidate_pool";
-    core3.warning(error instanceof Error ? error.message : String(error));
+    deps.core.warning(error instanceof Error ? error.message : String(error));
     return outputs;
   }
   outputs.rankedCandidatesJson = JSON.stringify(ranked.ranking);
   outputs.proposedAssignee = ranked.assignee;
   if (config.dryRun) {
     outputs.explanation = formatExplanation(ranked.ranking);
-    core3.info(outputs.explanation);
-    await writeJobSummary(ranked.ranking, ranked.assignee, config);
-    core3.info(`Dry run enabled. Proposed assignee: ${outputs.proposedAssignee}`);
-    await saveActivityCache(owner, repo, {
+    deps.core.info(outputs.explanation);
+    await deps.writeJobSummary(ranked.ranking, ranked.assignee, config);
+    deps.core.info(`Dry run enabled. Proposed assignee: ${outputs.proposedAssignee}`);
+    await deps.cache.saveActivityCache(owner, repo, {
       fetchedAt: new Date().toISOString(),
       activityWindowDays: config.signalWindows.activityWindowDays,
       signalsByLogin: activitySignals
@@ -71273,10 +71309,10 @@ async function runAction() {
         outputs.assignmentPerformed = true;
         const explanationRanking = rankForSelectedAssignee(ranked.ranking, login);
         outputs.explanation = formatExplanation(explanationRanking);
-        core3.info(outputs.explanation);
-        await writeJobSummary(explanationRanking, login, config);
-        core3.info(`Assigned @${login} to pull request #${pr.number}.`);
-        await saveActivityCache(owner, repo, {
+        deps.core.info(outputs.explanation);
+        await deps.writeJobSummary(explanationRanking, login, config);
+        deps.core.info(`Assigned @${login} to pull request #${pr.number}.`);
+        await deps.cache.saveActivityCache(owner, repo, {
           fetchedAt: new Date().toISOString(),
           activityWindowDays: config.signalWindows.activityWindowDays,
           signalsByLogin: activitySignals
@@ -71285,22 +71321,22 @@ async function runAction() {
       } catch (error) {
         if (isTransientAssignmentError(error) && transientRetries < 1) {
           transientRetries += 1;
-          core3.warning(`Transient assignment error for @${login}; retrying once in 2s. ${error instanceof Error ? error.message : String(error)}`);
-          await sleep(2000);
+          deps.core.warning(`Transient assignment error for @${login}; retrying once in 2s. ${error instanceof Error ? error.message : String(error)}`);
+          await deps.sleep(2000);
           continue;
         }
         if (isNotAssignableError(error)) {
-          core3.warning(`Candidate @${login} is not assignable; trying next candidate. ${error instanceof Error ? error.message : String(error)}`);
+          deps.core.warning(`Candidate @${login} is not assignable; trying next candidate. ${error instanceof Error ? error.message : String(error)}`);
           break;
         }
-        core3.warning(`Assignment failed for @${login}; aborting fallback to preserve deterministic winner. ${error instanceof Error ? error.message : String(error)}`);
+        deps.core.warning(`Assignment failed for @${login}; aborting fallback to preserve deterministic winner. ${error instanceof Error ? error.message : String(error)}`);
         outputs.assignmentPerformed = false;
         return outputs;
       }
     }
   }
   outputs.assignmentPerformed = false;
-  core3.warning("All assignment attempts failed. Proceeding without assignee.");
+  deps.core.warning("All assignment attempts failed. Proceeding without assignee.");
   return outputs;
 }
 
