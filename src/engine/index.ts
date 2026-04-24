@@ -42,6 +42,63 @@ export interface BuildCandidatePoolResult {
   usedSignalFallback: boolean;
 }
 
+export interface CandidateSignalStats {
+  commitCount: number;
+  reviewCount: number;
+  openAssignedPrs: number;
+  pendingReviewRequests: number;
+  recentAssignments: number;
+}
+
+export interface ScoreWeights {
+  weightDirectGte50: number;
+  weightDirectGte20: number;
+  weightDirectFloor: number;
+  weightTeamAny: number;
+  weightFallbackAny: number;
+  weightCodeFamiliarityPerCommit: number;
+  weightCodeFamiliarityMax: number;
+  weightReviewFamiliarityPerReview: number;
+  weightReviewFamiliarityMax: number;
+  weightActiveLoadPerPr: number;
+  weightActiveLoadMax: number;
+  weightPendingReviewPerRequest: number;
+  weightPendingReviewMax: number;
+  weightRecentAssignmentPerPr: number;
+  weightRecentAssignmentMax: number;
+  weightTeamFallbackPenalty: number;
+  weightFallbackOnlyPenalty: number;
+}
+
+export interface CandidateScoreComponents {
+  direct_ownership: number;
+  code_familiarity: number;
+  review_familiarity: number;
+  active_load: number;
+  pending_review: number;
+  recent_assignment: number;
+  team_fallback: number;
+  fallback_only: number;
+}
+
+export interface RankedCandidate {
+  login: string;
+  total: number;
+  tier: OwnershipTier;
+  components: CandidateScoreComponents;
+}
+
+export interface RankCandidatesInput {
+  candidates: Candidate[];
+  signalsByLogin: Record<string, CandidateSignalStats>;
+  weights: ScoreWeights;
+}
+
+export interface RankCandidatesResult {
+  ranking: RankedCandidate[];
+  assignee: string;
+}
+
 const tierRank: Record<OwnershipTier, number> = {
   direct_gte50: 5,
   direct_gte20: 4,
@@ -209,5 +266,116 @@ export function buildCandidatePool(input: BuildCandidatePoolInput): BuildCandida
   return {
     candidates: signalCandidates,
     usedSignalFallback: true,
+  };
+}
+
+function clampPositive(value: number, max: number): number {
+  return Math.max(0, Math.min(value, max));
+}
+
+function ownershipTierScore(tier: OwnershipTier, weights: ScoreWeights): number {
+  switch (tier) {
+    case 'direct_gte50':
+      return weights.weightDirectGte50;
+    case 'direct_gte20':
+      return weights.weightDirectGte20;
+    case 'direct_floor':
+      return weights.weightDirectFloor;
+    case 'team_any':
+      return weights.weightTeamAny;
+    case 'fallback_any':
+      return weights.weightFallbackAny;
+    case 'none':
+      return 0;
+  }
+}
+
+function getSignalsForLogin(
+  signalsByLogin: Record<string, CandidateSignalStats>,
+  login: string,
+): CandidateSignalStats {
+  return (
+    signalsByLogin[login] ?? {
+      commitCount: 0,
+      reviewCount: 0,
+      openAssignedPrs: 0,
+      pendingReviewRequests: 0,
+      recentAssignments: 0,
+    }
+  );
+}
+
+export function rankCandidates(input: RankCandidatesInput): RankCandidatesResult {
+  const ranking = input.candidates
+    .map((candidate): RankedCandidate => {
+      const signals = getSignalsForLogin(input.signalsByLogin, candidate.login);
+      const components: CandidateScoreComponents = {
+        direct_ownership: ownershipTierScore(candidate.tier, input.weights),
+        code_familiarity: clampPositive(
+          signals.commitCount * input.weights.weightCodeFamiliarityPerCommit,
+          input.weights.weightCodeFamiliarityMax,
+        ),
+        review_familiarity: clampPositive(
+          signals.reviewCount * input.weights.weightReviewFamiliarityPerReview,
+          input.weights.weightReviewFamiliarityMax,
+        ),
+        active_load: clampPositive(
+          signals.openAssignedPrs * input.weights.weightActiveLoadPerPr,
+          input.weights.weightActiveLoadMax,
+        ),
+        pending_review: clampPositive(
+          signals.pendingReviewRequests * input.weights.weightPendingReviewPerRequest,
+          input.weights.weightPendingReviewMax,
+        ),
+        recent_assignment: clampPositive(
+          signals.recentAssignments * input.weights.weightRecentAssignmentPerPr,
+          input.weights.weightRecentAssignmentMax,
+        ),
+        team_fallback: candidate.tier === 'team_any' ? input.weights.weightTeamFallbackPenalty : 0,
+        fallback_only: candidate.tier === 'fallback_any' ? input.weights.weightFallbackOnlyPenalty : 0,
+      };
+
+      const total =
+        components.direct_ownership +
+        components.code_familiarity +
+        components.review_familiarity -
+        components.active_load -
+        components.pending_review -
+        components.recent_assignment -
+        components.team_fallback -
+        components.fallback_only;
+
+      return {
+        login: candidate.login,
+        total,
+        tier: candidate.tier,
+        components,
+      };
+    })
+    .sort((a, b) => {
+      if (a.total !== b.total) return b.total - a.total;
+      if (tierRank[a.tier] !== tierRank[b.tier]) return tierRank[b.tier] - tierRank[a.tier];
+      if (a.components.active_load !== b.components.active_load) {
+        return a.components.active_load - b.components.active_load;
+      }
+      if (a.components.recent_assignment !== b.components.recent_assignment) {
+        return a.components.recent_assignment - b.components.recent_assignment;
+      }
+      if (a.components.code_familiarity !== b.components.code_familiarity) {
+        return b.components.code_familiarity - a.components.code_familiarity;
+      }
+      return a.login.localeCompare(b.login);
+    });
+
+  const winner = ranking.find((candidate) => candidate.total > 0);
+  if (!winner) {
+    throw new Error(
+      'all candidates have non-positive scores; workload penalties dominated ownership - consider adjusting weights.',
+    );
+  }
+
+  return {
+    ranking,
+    assignee: winner.login,
   };
 }
