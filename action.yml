@@ -1,0 +1,149 @@
+name: 'PR Assignee'
+author: 'Firebolt'
+description: 'Deterministically assigns exactly one best assignee to a pull request.'
+
+inputs:
+  github_token:
+    description: 'Token with contents:read and pull-requests:write or issues:write.'
+    required: true
+  token_override:
+    description: 'Optional token with members:read and/or read:user; falls back to github_token.'
+    required: false
+    default: ''
+  dry_run:
+    description: 'Compute and emit winner without mutating assignees.'
+    required: false
+    default: 'false'
+  opt_out_label:
+    description: 'Label that disables auto-assignment. Empty disables opt-out label behavior.'
+    required: false
+    default: 'no-auto-assign'
+  familiarity_window_days:
+    description: 'Commit-authorship lookback for code familiarity.'
+    required: false
+    default: '30'
+  review_window_days:
+    description: 'Lookback for review familiarity.'
+    required: false
+    default: '30'
+  recent_assignment_window_days:
+    description: 'Window in which prior assignments penalize a candidate.'
+    required: false
+    default: '10'
+  activity_window_days:
+    description: 'Upper bound on open-PR scan used for workload signals.'
+    required: false
+    default: '30'
+  check_github_status:
+    description: 'When true, treat users with limited availability status as unavailable.'
+    required: false
+    default: 'true'
+  exclude_users:
+    description: 'Newline-separated logins to always exclude.'
+    required: false
+    default: ''
+  bot_login_patterns:
+    description: 'Newline-separated regex patterns to exclude bot candidates.'
+    required: false
+    default: |
+      \[bot\]$
+      ^dependabot$
+      ^renovate$
+  fallback_patterns:
+    description: 'Newline-separated regex patterns that classify fallback CODEOWNERS patterns.'
+    required: false
+    default: |
+      ^\*$
+      ^/$
+  unavailable_reviewers:
+    description: 'Newline-separated logins that are currently unavailable.'
+    required: false
+    default: ''
+  weight_direct_gte50:
+    description: 'Ownership score for direct CODEOWNERS >= 50% LOC.'
+    required: false
+    default: '50'
+  weight_direct_gte20:
+    description: 'Ownership score for direct CODEOWNERS >= 20% and < 50% LOC.'
+    required: false
+    default: '35'
+  weight_direct_floor:
+    description: 'Ownership score for direct CODEOWNERS > 0% and < 20% LOC.'
+    required: false
+    default: '20'
+  weight_team_any:
+    description: 'Ownership score for candidates matched only via team membership.'
+    required: false
+    default: '20'
+  weight_fallback_any:
+    description: 'Ownership score for candidates matched only via fallback pattern.'
+    required: false
+    default: '5'
+  weight_code_familiarity_per_commit:
+    description: 'Score per commit on changed files in familiarity window.'
+    required: false
+    default: '5'
+  weight_code_familiarity_max:
+    description: 'Maximum code familiarity score.'
+    required: false
+    default: '25'
+  weight_review_familiarity_per_review:
+    description: 'Score per review on overlapping pull requests in review window.'
+    required: false
+    default: '4'
+  weight_review_familiarity_max:
+    description: 'Maximum review familiarity score.'
+    required: false
+    default: '20'
+  weight_active_load_per_pr:
+    description: 'Penalty per currently assigned open pull request.'
+    required: false
+    default: '8'
+  weight_active_load_max:
+    description: 'Maximum active load penalty.'
+    required: false
+    default: '24'
+  weight_pending_review_per_request:
+    description: 'Penalty per pending review request on open pull requests.'
+    required: false
+    default: '5'
+  weight_pending_review_max:
+    description: 'Maximum pending review penalty.'
+    required: false
+    default: '20'
+  weight_recent_assignment_per_pr:
+    description: 'Penalty per assignment event in the recent assignment window.'
+    required: false
+    default: '6'
+  weight_recent_assignment_max:
+    description: 'Maximum recent assignment penalty.'
+    required: false
+    default: '18'
+  weight_team_fallback_penalty:
+    description: 'Penalty applied when ownership tier is team_any.'
+    required: false
+    default: '10'
+  weight_fallback_only_penalty:
+    description: 'Penalty applied when ownership tier is fallback_any.'
+    required: false
+    default: '20'
+
+outputs:
+  proposed_assignee:
+    description: 'Selected login; empty when skipped.'
+  assignment_performed:
+    description: 'String boolean indicating whether assignment mutation succeeded.'
+  ranked_candidates_json:
+    description: 'JSON array of ranked candidates with per-component score breakdown.'
+  explanation:
+    description: 'Human-readable explanation for top choice.'
+  skipped_reason:
+    description: 'Skip enum: empty, draft, already_assigned, opted_out, fork_pr, empty_candidate_pool.'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
+
+branding:
+  icon: 'users'
+  color: 'blue'
