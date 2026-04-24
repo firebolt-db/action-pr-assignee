@@ -51,6 +51,7 @@ const activityQuery = `
           assignees(first: 50) { nodes { login } }
           reviewRequests(first: 50) {
             nodes {
+              asCodeOwner
               requestedReviewer {
                 ... on User { login }
                 ... on Team {
@@ -103,6 +104,7 @@ export async function fetchActivitySignals(
             assignees: { nodes: Array<{ login: string }> };
             reviewRequests: {
               nodes: Array<{
+                asCodeOwner?: boolean;
                 requestedReviewer: { login?: string; slug?: string; organization?: { login: string } } | null;
               }>;
             };

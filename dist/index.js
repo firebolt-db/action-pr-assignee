@@ -70032,18 +70032,21 @@ function formatExplanation(ranked) {
   const lines = [
     `${winner.login} - total ${winner.total}`,
     `  direct ownership (${winner.tier}): +${winner.components.direct_ownership}`,
-    `  code familiarity: +${winner.components.code_familiarity}`,
-    `  review familiarity: +${winner.components.review_familiarity}`,
-    `  active load: -${winner.components.active_load}`,
-    `  pending reviews: -${winner.components.pending_review}`,
-    `  recent assignments: -${winner.components.recent_assignment}`
+    `  code familiarity (${winner.signalCounts.commitCount} commits): +${winner.components.code_familiarity}`,
+    `  review familiarity (${winner.signalCounts.reviewCount} reviews): +${winner.components.review_familiarity}`,
+    `  active load (${winner.signalCounts.openAssignedPrs} PRs): -${winner.components.active_load}`,
+    `  pending reviews (${winner.signalCounts.pendingReviewRequests}): -${winner.components.pending_review}`,
+    `  recent assignments (${winner.signalCounts.recentAssignments}): -${winner.components.recent_assignment}`
   ];
   const runnerUp = ranked[1];
   if (runnerUp) {
     lines.push(`runner-up: ${runnerUp.login} (${runnerUp.total})`);
   }
-  return lines.join(`
+  const explanation = lines.join(`
 `);
+  if (explanation.length <= 1024)
+    return explanation;
+  return `${explanation.slice(0, 1021)}...`;
 }
 async function writeJobSummary(ranked, selectedAssignee, config) {
   const rows = ranked.slice(0, 10).map((candidate) => `| ${candidate.login} | ${candidate.total} | ${candidate.tier} | ${candidate.components.direct_ownership} | ${candidate.components.code_familiarity} | ${candidate.components.review_familiarity} | ${candidate.components.active_load} | ${candidate.components.pending_review} | ${candidate.components.recent_assignment} |`).join(`
@@ -70250,6 +70253,7 @@ var activityQuery = `
           assignees(first: 50) { nodes { login } }
           reviewRequests(first: 50) {
             nodes {
+              asCodeOwner
               requestedReviewer {
                 ... on User { login }
                 ... on Team {
@@ -70898,7 +70902,8 @@ function rankCandidates(input) {
       login: candidate.login,
       total,
       tier: candidate.tier,
-      components
+      components,
+      signalCounts: signals2
     };
   }).sort((a, b) => {
     if (a.total !== b.total)
@@ -71063,7 +71068,9 @@ async function runAction(partialDeps = {}) {
   };
   const outputs = createEmptyOutputs();
   const config = parseActionConfig(deps.core);
-  const octokit = deps.getOctokit(config.effectiveToken);
+  const baseOctokit = deps.getOctokit(config.githubToken);
+  const scopedOverrideOctokit = config.tokenOverride ? deps.getOctokit(config.tokenOverride) : null;
+  const elevatedOctokit = scopedOverrideOctokit ?? baseOctokit;
   const owner = deps.githubContext.repo.owner;
   const repo = deps.githubContext.repo.repo;
   const pullNumber = deps.githubContext.payload.pull_request?.number;
@@ -71072,7 +71079,7 @@ async function runAction(partialDeps = {}) {
   }
   let pr;
   try {
-    pr = await deps.adapters.fetchPrCoreData(octokit, owner, repo, pullNumber);
+    pr = await deps.adapters.fetchPrCoreData(baseOctokit, owner, repo, pullNumber);
   } catch (error) {
     deps.core.warning(`Unable to fetch PR core data, skipping assignment: ${error instanceof Error ? error.message : String(error)}`);
     return outputs;
@@ -71107,7 +71114,7 @@ async function runAction(partialDeps = {}) {
   }
   const codeowners2 = await (async () => {
     try {
-      return await deps.adapters.fetchCodeownersAtBaseRef(octokit, owner, repo, pr.baseRef);
+      return await deps.adapters.fetchCodeownersAtBaseRef(baseOctokit, owner, repo, pr.baseRef);
     } catch (error) {
       deps.core.warning(`Unable to fetch CODEOWNERS at base ref, continuing without ownership signal: ${error instanceof Error ? error.message : String(error)}`);
       return { found: false, path: null, content: null };
@@ -71149,7 +71156,7 @@ async function runAction(partialDeps = {}) {
     if (!org || !slug)
       continue;
     try {
-      teamMembersByRef[teamRef] = await deps.adapters.expandTeamMembers(octokit, org, slug);
+      teamMembersByRef[teamRef] = await deps.adapters.expandTeamMembers(elevatedOctokit, org, slug);
     } catch (error) {
       deps.core.warning(`Team expansion failed for @${teamRef}: ${error instanceof Error ? error.message : String(error)}`);
       teamMembersByRef[teamRef] = [];
@@ -71164,7 +71171,7 @@ async function runAction(partialDeps = {}) {
   }));
   const renameMap = pr.files.some((file) => file.changeType === "RENAMED") ? await (async () => {
     try {
-      return await deps.adapters.fetchRenamePreviousPathByCurrentFilename(octokit, owner, repo, pr.number);
+      return await deps.adapters.fetchRenamePreviousPathByCurrentFilename(baseOctokit, owner, repo, pr.number);
     } catch (error) {
       deps.core.warning(`Rename recovery unavailable, continuing without previous paths: ${error instanceof Error ? error.message : String(error)}`);
       return {};
@@ -71177,7 +71184,7 @@ async function runAction(partialDeps = {}) {
   const commitPaths = [...new Set(scopedFiles.flatMap((file) => [file.path, renameMap[file.path]].filter(Boolean)))];
   const commitSignals = await (async () => {
     try {
-      return await deps.adapters.fetchCommitFamiliaritySignals(octokit, owner, repo, pr.defaultBranch, familiaritySince, commitPaths);
+      return await deps.adapters.fetchCommitFamiliaritySignals(baseOctokit, owner, repo, pr.defaultBranch, familiaritySince, commitPaths);
     } catch (error) {
       deps.core.warning(`Commit familiarity signal unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
       return {};
@@ -71185,7 +71192,7 @@ async function runAction(partialDeps = {}) {
   })();
   const reviewSignals = await (async () => {
     try {
-      return await deps.adapters.fetchReviewFamiliaritySignals(octokit, owner, repo, reviewSince, scopedFiles.map((file) => file.path));
+      return await deps.adapters.fetchReviewFamiliaritySignals(baseOctokit, owner, repo, reviewSince, scopedFiles.map((file) => file.path));
     } catch (error) {
       deps.core.warning(`Review familiarity signal unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
       return {};
@@ -71210,7 +71217,7 @@ async function runAction(partialDeps = {}) {
   });
   let deletedUsers = [];
   try {
-    deletedUsers = await deps.adapters.fetchDeletedUsers(octokit, preCandidatePool.candidates.map((candidate) => candidate.login));
+    deletedUsers = await deps.adapters.fetchDeletedUsers(baseOctokit, preCandidatePool.candidates.map((candidate) => candidate.login));
   } catch (error) {
     deps.core.warning(`Deleted-user filter unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
     deletedUsers = [];
@@ -71218,7 +71225,7 @@ async function runAction(partialDeps = {}) {
   let oooUsers = [];
   if (config.checkGitHubStatus) {
     try {
-      oooUsers = await deps.adapters.fetchLimitedAvailabilityUsers(octokit, preCandidatePool.candidates.map((candidate) => candidate.login));
+      oooUsers = await deps.adapters.fetchLimitedAvailabilityUsers(elevatedOctokit, preCandidatePool.candidates.map((candidate) => candidate.login));
     } catch (error) {
       deps.core.warning(`Status-based availability disabled due to missing read:user or query failure: ${error instanceof Error ? error.message : String(error)}`);
       oooUsers = [];
@@ -71227,7 +71234,7 @@ async function runAction(partialDeps = {}) {
   const restoredActivity = await deps.cache.restoreActivityCache(owner, repo, config.signalWindows.activityWindowDays);
   const activitySignals = restoredActivity?.signalsByLogin ?? await (async () => {
     try {
-      return await deps.adapters.fetchActivitySignals(octokit, owner, repo, activitySince, recentAssignmentSince, teamMembersByRef);
+      return await deps.adapters.fetchActivitySignals(elevatedOctokit, owner, repo, activitySince, recentAssignmentSince, teamMembersByRef);
     } catch (error) {
       deps.core.warning(`Activity/workload signal unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
       return {};
@@ -71301,7 +71308,10 @@ async function runAction(partialDeps = {}) {
     let transientRetries = 0;
     while (true) {
       try {
-        await octokit.graphql(assignMutation, {
+        if ((ranked.ranking[attempt]?.total ?? 0) <= 0) {
+          break;
+        }
+        await baseOctokit.graphql(assignMutation, {
           pullRequestId: pr.nodeId,
           logins: [login]
         });

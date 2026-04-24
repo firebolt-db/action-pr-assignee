@@ -28,11 +28,11 @@ export function formatExplanation(ranked: RankedCandidate[]): string {
   const lines = [
     `${winner.login} - total ${winner.total}`,
     `  direct ownership (${winner.tier}): +${winner.components.direct_ownership}`,
-    `  code familiarity: +${winner.components.code_familiarity}`,
-    `  review familiarity: +${winner.components.review_familiarity}`,
-    `  active load: -${winner.components.active_load}`,
-    `  pending reviews: -${winner.components.pending_review}`,
-    `  recent assignments: -${winner.components.recent_assignment}`,
+    `  code familiarity (${winner.signalCounts.commitCount} commits): +${winner.components.code_familiarity}`,
+    `  review familiarity (${winner.signalCounts.reviewCount} reviews): +${winner.components.review_familiarity}`,
+    `  active load (${winner.signalCounts.openAssignedPrs} PRs): -${winner.components.active_load}`,
+    `  pending reviews (${winner.signalCounts.pendingReviewRequests}): -${winner.components.pending_review}`,
+    `  recent assignments (${winner.signalCounts.recentAssignments}): -${winner.components.recent_assignment}`,
   ];
 
   const runnerUp = ranked[1];
@@ -40,7 +40,9 @@ export function formatExplanation(ranked: RankedCandidate[]): string {
     lines.push(`runner-up: ${runnerUp.login} (${runnerUp.total})`);
   }
 
-  return lines.join('\n');
+  const explanation = lines.join('\n');
+  if (explanation.length <= 1024) return explanation;
+  return `${explanation.slice(0, 1021)}...`;
 }
 
 export async function writeJobSummary(ranked: RankedCandidate[], selectedAssignee: string, config: ActionConfig): Promise<void> {
