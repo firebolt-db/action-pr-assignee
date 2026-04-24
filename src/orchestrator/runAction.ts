@@ -12,6 +12,7 @@ import {
   type OctokitLike,
 } from '../adapters/github/index.js';
 import { parseActionConfig } from '../config/parseConfig.js';
+import { restoreActivityCache, saveActivityCache } from '../cache/index.js';
 import { buildCandidatePool, rankCandidates } from '../engine/index.js';
 import { createEmptyOutputs } from '../output.js';
 import type { ActionRunResult } from '../types.js';
@@ -172,15 +173,18 @@ export async function runAction(): Promise<ActionRunResult> {
         preCandidatePool.candidates.map((candidate) => candidate.login),
       )
     : [];
-  const activitySignals = await fetchActivitySignals(
-    octokit,
-    owner,
-    repo,
-    activitySince,
-    recentAssignmentSince,
-    preCandidatePool.candidates.map((candidate) => candidate.login),
-    teamMembersByRef,
-  );
+  const restoredActivity = await restoreActivityCache(owner, repo, config.signalWindows.activityWindowDays);
+  const activitySignals =
+    restoredActivity?.signalsByLogin ??
+    (await fetchActivitySignals(
+      octokit,
+      owner,
+      repo,
+      activitySince,
+      recentAssignmentSince,
+      preCandidatePool.candidates.map((candidate) => candidate.login),
+      teamMembersByRef,
+    ));
 
   const candidatePool = buildCandidatePool({
     codeownersPresent: codeowners.found,
@@ -240,6 +244,11 @@ export async function runAction(): Promise<ActionRunResult> {
 
   if (config.dryRun) {
     core.info(`Dry run enabled. Proposed assignee: ${outputs.proposedAssignee}`);
+    await saveActivityCache(owner, repo, {
+      fetchedAt: new Date().toISOString(),
+      activityWindowDays: config.signalWindows.activityWindowDays,
+      signalsByLogin: activitySignals,
+    });
     return outputs;
   }
 
@@ -257,6 +266,11 @@ export async function runAction(): Promise<ActionRunResult> {
       outputs.proposedAssignee = login;
       outputs.assignmentPerformed = true;
       core.info(`Assigned @${login} to pull request #${pr.number}.`);
+      await saveActivityCache(owner, repo, {
+        fetchedAt: new Date().toISOString(),
+        activityWindowDays: config.signalWindows.activityWindowDays,
+        signalsByLogin: activitySignals,
+      });
       return outputs;
     } catch (error) {
       core.warning(
@@ -269,6 +283,11 @@ export async function runAction(): Promise<ActionRunResult> {
 
   outputs.assignmentPerformed = false;
   core.warning('All assignment attempts failed. Proceeding without assignee.');
+  await saveActivityCache(owner, repo, {
+    fetchedAt: new Date().toISOString(),
+    activityWindowDays: config.signalWindows.activityWindowDays,
+    signalsByLogin: activitySignals,
+  });
   return outputs;
 
 }
