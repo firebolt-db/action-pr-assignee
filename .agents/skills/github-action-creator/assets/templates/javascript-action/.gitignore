@@ -1,0 +1,4 @@
+node_modules/
+
+# IMPORTANT: do NOT gitignore dist/ — it is what the runner actually executes
+# when a consumer pins to @v1. Commit the bundled output on every release.

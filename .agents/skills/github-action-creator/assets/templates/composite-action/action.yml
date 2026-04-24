@@ -1,0 +1,43 @@
+name: 'Composite Action Template'
+author: 'Firebolt'
+description: 'A minimal composite action template. Replace inputs, steps, and branding.'
+
+inputs:
+  greeting:
+    description: 'The greeting to print.'
+    required: false
+    default: 'Hello'
+  who-to-greet:
+    description: 'The name of the recipient.'
+    required: true
+
+outputs:
+  # Composite outputs MUST include `value:` — otherwise consumers read an
+  # empty string even when the step sets $GITHUB_OUTPUT.
+  full-greeting:
+    description: 'The greeting that was printed.'
+    value: ${{ steps.greet.outputs.full-greeting }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate input
+      # `shell:` is required on every `run:` step in a composite action.
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.who-to-greet }}" ]; then
+          echo "::error::Input 'who-to-greet' is required"
+          exit 1
+        fi
+
+    - name: Greet
+      id: greet
+      shell: bash
+      run: |
+        FULL_GREETING="${{ inputs.greeting }}, ${{ inputs.who-to-greet }}!"
+        echo "$FULL_GREETING"
+        echo "full-greeting=${FULL_GREETING}" >> "$GITHUB_OUTPUT"
+
+branding:
+  icon: 'box'
+  color: 'green'

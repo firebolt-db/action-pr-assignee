@@ -1,0 +1,25 @@
+name: 'JavaScript Action Template'
+author: 'Firebolt'
+description: 'A minimal Node.js action template. Replace inputs, implementation in src/index.js, and branding.'
+
+inputs:
+  greeting:
+    description: 'The greeting to print.'
+    required: false
+    default: 'Hello'
+  who-to-greet:
+    description: 'The name of the recipient.'
+    required: true
+
+outputs:
+  full-greeting:
+    description: 'The greeting that was printed.'
+
+runs:
+  # Always target the newest supported Node. Do NOT use node16 or older.
+  using: 'node20'
+  main: 'dist/index.js'
+
+branding:
+  icon: 'zap'
+  color: 'yellow'

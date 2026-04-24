@@ -1,0 +1,27 @@
+name: 'Docker Action Template'
+author: 'Firebolt'
+description: 'A minimal Docker container action template. Replace inputs, entrypoint logic, and branding.'
+
+inputs:
+  greeting:
+    description: 'The greeting to print.'
+    required: false
+    default: 'Hello'
+  who-to-greet:
+    description: 'The name of the recipient.'
+    required: true
+
+outputs:
+  full-greeting:
+    description: 'The full greeting that was printed (also written to $GITHUB_OUTPUT by entrypoint.sh).'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.greeting }}
+    - ${{ inputs.who-to-greet }}
+
+branding:
+  icon: 'activity'
+  color: 'blue'
