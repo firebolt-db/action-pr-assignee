@@ -7,7 +7,12 @@ interface InputSource {
 }
 
 function parseIntInput(inputName: string, raw: string): number {
-  const value = Number.parseInt(raw, 10);
+  const trimmed = raw.trim();
+  if (!/^-?\d+$/.test(trimmed)) {
+    throw new Error(`Invalid input: ${inputName} must be an integer, got "${raw}"`);
+  }
+
+  const value = Number.parseInt(trimmed, 10);
   if (!Number.isFinite(value) || !Number.isInteger(value)) {
     throw new Error(`Invalid input: ${inputName} must be an integer, got "${raw}"`);
   }

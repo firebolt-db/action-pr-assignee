@@ -100,6 +100,16 @@ describe('parseActionConfig', () => {
     ).toThrow('weight_direct_gte50');
   });
 
+  it('throws for partially numeric integer input', () => {
+    expect(() =>
+      parseActionConfig(
+        makeSource({
+          activity_window_days: '30days',
+        }),
+      ),
+    ).toThrow('activity_window_days');
+  });
+
   it('throws for negative window input', () => {
     expect(() =>
       parseActionConfig(
