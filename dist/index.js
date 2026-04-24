@@ -18794,6 +18794,6793 @@ var require_core = __commonJS((exports) => {
   exports.platform = __importStar(require_platform());
 });
 
+// node_modules/@actions/github/lib/context.js
+var require_context = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.Context = undefined;
+  var fs_1 = __require("fs");
+  var os_1 = __require("os");
+
+  class Context {
+    constructor() {
+      var _a, _b, _c;
+      this.payload = {};
+      if (process.env.GITHUB_EVENT_PATH) {
+        if ((0, fs_1.existsSync)(process.env.GITHUB_EVENT_PATH)) {
+          this.payload = JSON.parse((0, fs_1.readFileSync)(process.env.GITHUB_EVENT_PATH, { encoding: "utf8" }));
+        } else {
+          const path = process.env.GITHUB_EVENT_PATH;
+          process.stdout.write(`GITHUB_EVENT_PATH ${path} does not exist${os_1.EOL}`);
+        }
+      }
+      this.eventName = process.env.GITHUB_EVENT_NAME;
+      this.sha = process.env.GITHUB_SHA;
+      this.ref = process.env.GITHUB_REF;
+      this.workflow = process.env.GITHUB_WORKFLOW;
+      this.action = process.env.GITHUB_ACTION;
+      this.actor = process.env.GITHUB_ACTOR;
+      this.job = process.env.GITHUB_JOB;
+      this.runAttempt = parseInt(process.env.GITHUB_RUN_ATTEMPT, 10);
+      this.runNumber = parseInt(process.env.GITHUB_RUN_NUMBER, 10);
+      this.runId = parseInt(process.env.GITHUB_RUN_ID, 10);
+      this.apiUrl = (_a = process.env.GITHUB_API_URL) !== null && _a !== undefined ? _a : `https://api.github.com`;
+      this.serverUrl = (_b = process.env.GITHUB_SERVER_URL) !== null && _b !== undefined ? _b : `https://github.com`;
+      this.graphqlUrl = (_c = process.env.GITHUB_GRAPHQL_URL) !== null && _c !== undefined ? _c : `https://api.github.com/graphql`;
+    }
+    get issue() {
+      const payload = this.payload;
+      return Object.assign(Object.assign({}, this.repo), { number: (payload.issue || payload.pull_request || payload).number });
+    }
+    get repo() {
+      if (process.env.GITHUB_REPOSITORY) {
+        const [owner, repo] = process.env.GITHUB_REPOSITORY.split("/");
+        return { owner, repo };
+      }
+      if (this.payload.repository) {
+        return {
+          owner: this.payload.repository.owner.login,
+          repo: this.payload.repository.name
+        };
+      }
+      throw new Error("context.repo requires a GITHUB_REPOSITORY environment variable like 'owner/repo'");
+    }
+  }
+  exports.Context = Context;
+});
+
+// node_modules/@actions/github/lib/internal/utils.js
+var require_utils3 = __commonJS((exports) => {
+  var __createBinding = exports && exports.__createBinding || (Object.create ? function(o, m, k, k2) {
+    if (k2 === undefined)
+      k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() {
+        return m[k];
+      } };
+    }
+    Object.defineProperty(o, k2, desc);
+  } : function(o, m, k, k2) {
+    if (k2 === undefined)
+      k2 = k;
+    o[k2] = m[k];
+  });
+  var __setModuleDefault = exports && exports.__setModuleDefault || (Object.create ? function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+  } : function(o, v) {
+    o["default"] = v;
+  });
+  var __importStar = exports && exports.__importStar || function(mod) {
+    if (mod && mod.__esModule)
+      return mod;
+    var result = {};
+    if (mod != null) {
+      for (var k in mod)
+        if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k))
+          __createBinding(result, mod, k);
+    }
+    __setModuleDefault(result, mod);
+    return result;
+  };
+  var __awaiter = exports && exports.__awaiter || function(thisArg, _arguments, P, generator) {
+    function adopt(value) {
+      return value instanceof P ? value : new P(function(resolve) {
+        resolve(value);
+      });
+    }
+    return new (P || (P = Promise))(function(resolve, reject) {
+      function fulfilled(value) {
+        try {
+          step(generator.next(value));
+        } catch (e) {
+          reject(e);
+        }
+      }
+      function rejected(value) {
+        try {
+          step(generator["throw"](value));
+        } catch (e) {
+          reject(e);
+        }
+      }
+      function step(result) {
+        result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected);
+      }
+      step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+  };
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.getApiBaseUrl = exports.getProxyFetch = exports.getProxyAgentDispatcher = exports.getProxyAgent = exports.getAuthString = undefined;
+  var httpClient = __importStar(require_lib());
+  var undici_1 = require_undici();
+  function getAuthString(token, options) {
+    if (!token && !options.auth) {
+      throw new Error("Parameter token or opts.auth is required");
+    } else if (token && options.auth) {
+      throw new Error("Parameters token and opts.auth may not both be specified");
+    }
+    return typeof options.auth === "string" ? options.auth : `token ${token}`;
+  }
+  exports.getAuthString = getAuthString;
+  function getProxyAgent(destinationUrl) {
+    const hc = new httpClient.HttpClient;
+    return hc.getAgent(destinationUrl);
+  }
+  exports.getProxyAgent = getProxyAgent;
+  function getProxyAgentDispatcher(destinationUrl) {
+    const hc = new httpClient.HttpClient;
+    return hc.getAgentDispatcher(destinationUrl);
+  }
+  exports.getProxyAgentDispatcher = getProxyAgentDispatcher;
+  function getProxyFetch(destinationUrl) {
+    const httpDispatcher = getProxyAgentDispatcher(destinationUrl);
+    const proxyFetch = (url, opts) => __awaiter(this, undefined, undefined, function* () {
+      return (0, undici_1.fetch)(url, Object.assign(Object.assign({}, opts), { dispatcher: httpDispatcher }));
+    });
+    return proxyFetch;
+  }
+  exports.getProxyFetch = getProxyFetch;
+  function getApiBaseUrl() {
+    return process.env["GITHUB_API_URL"] || "https://api.github.com";
+  }
+  exports.getApiBaseUrl = getApiBaseUrl;
+});
+
+// node_modules/universal-user-agent/dist-node/index.js
+var require_dist_node = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+  function getUserAgent() {
+    if (typeof navigator === "object" && "userAgent" in navigator) {
+      return navigator.userAgent;
+    }
+    if (typeof process === "object" && process.version !== undefined) {
+      return `Node.js/${process.version.substr(1)} (${process.platform}; ${process.arch})`;
+    }
+    return "<environment undetectable>";
+  }
+  exports.getUserAgent = getUserAgent;
+});
+
+// node_modules/before-after-hook/lib/register.js
+var require_register = __commonJS((exports, module) => {
+  module.exports = register;
+  function register(state, name, method, options) {
+    if (typeof method !== "function") {
+      throw new Error("method for before hook must be a function");
+    }
+    if (!options) {
+      options = {};
+    }
+    if (Array.isArray(name)) {
+      return name.reverse().reduce(function(callback, name2) {
+        return register.bind(null, state, name2, callback, options);
+      }, method)();
+    }
+    return Promise.resolve().then(function() {
+      if (!state.registry[name]) {
+        return method(options);
+      }
+      return state.registry[name].reduce(function(method2, registered) {
+        return registered.hook.bind(null, method2, options);
+      }, method)();
+    });
+  }
+});
+
+// node_modules/before-after-hook/lib/add.js
+var require_add = __commonJS((exports, module) => {
+  module.exports = addHook;
+  function addHook(state, kind, name, hook) {
+    var orig = hook;
+    if (!state.registry[name]) {
+      state.registry[name] = [];
+    }
+    if (kind === "before") {
+      hook = function(method, options) {
+        return Promise.resolve().then(orig.bind(null, options)).then(method.bind(null, options));
+      };
+    }
+    if (kind === "after") {
+      hook = function(method, options) {
+        var result;
+        return Promise.resolve().then(method.bind(null, options)).then(function(result_) {
+          result = result_;
+          return orig(result, options);
+        }).then(function() {
+          return result;
+        });
+      };
+    }
+    if (kind === "error") {
+      hook = function(method, options) {
+        return Promise.resolve().then(method.bind(null, options)).catch(function(error) {
+          return orig(error, options);
+        });
+      };
+    }
+    state.registry[name].push({
+      hook,
+      orig
+    });
+  }
+});
+
+// node_modules/before-after-hook/lib/remove.js
+var require_remove = __commonJS((exports, module) => {
+  module.exports = removeHook;
+  function removeHook(state, name, method) {
+    if (!state.registry[name]) {
+      return;
+    }
+    var index = state.registry[name].map(function(registered) {
+      return registered.orig;
+    }).indexOf(method);
+    if (index === -1) {
+      return;
+    }
+    state.registry[name].splice(index, 1);
+  }
+});
+
+// node_modules/before-after-hook/index.js
+var require_before_after_hook = __commonJS((exports, module) => {
+  var register = require_register();
+  var addHook = require_add();
+  var removeHook = require_remove();
+  var bind = Function.bind;
+  var bindable = bind.bind(bind);
+  function bindApi(hook, state, name) {
+    var removeHookRef = bindable(removeHook, null).apply(null, name ? [state, name] : [state]);
+    hook.api = { remove: removeHookRef };
+    hook.remove = removeHookRef;
+    ["before", "error", "after", "wrap"].forEach(function(kind) {
+      var args = name ? [state, kind, name] : [state, kind];
+      hook[kind] = hook.api[kind] = bindable(addHook, null).apply(null, args);
+    });
+  }
+  function HookSingular() {
+    var singularHookName = "h";
+    var singularHookState = {
+      registry: {}
+    };
+    var singularHook = register.bind(null, singularHookState, singularHookName);
+    bindApi(singularHook, singularHookState, singularHookName);
+    return singularHook;
+  }
+  function HookCollection() {
+    var state = {
+      registry: {}
+    };
+    var hook = register.bind(null, state);
+    bindApi(hook, state);
+    return hook;
+  }
+  var collectionHookDeprecationMessageDisplayed = false;
+  function Hook() {
+    if (!collectionHookDeprecationMessageDisplayed) {
+      console.warn('[before-after-hook]: "Hook()" repurposing warning, use "Hook.Collection()". Read more: https://git.io/upgrade-before-after-hook-to-1.4');
+      collectionHookDeprecationMessageDisplayed = true;
+    }
+    return HookCollection();
+  }
+  Hook.Singular = HookSingular.bind();
+  Hook.Collection = HookCollection.bind();
+  module.exports = Hook;
+  module.exports.Hook = Hook;
+  module.exports.Singular = Hook.Singular;
+  module.exports.Collection = Hook.Collection;
+});
+
+// node_modules/@octokit/endpoint/dist-node/index.js
+var require_dist_node2 = __commonJS((exports, module) => {
+  var __defProp2 = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames2 = Object.getOwnPropertyNames;
+  var __hasOwnProp2 = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp2(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames2(from))
+        if (!__hasOwnProp2.call(to, key) && key !== except)
+          __defProp2(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp2({}, "__esModule", { value: true }), mod);
+  var dist_src_exports = {};
+  __export(dist_src_exports, {
+    endpoint: () => endpoint
+  });
+  module.exports = __toCommonJS(dist_src_exports);
+  var import_universal_user_agent = require_dist_node();
+  var VERSION = "9.0.6";
+  var userAgent = `octokit-endpoint.js/${VERSION} ${(0, import_universal_user_agent.getUserAgent)()}`;
+  var DEFAULTS = {
+    method: "GET",
+    baseUrl: "https://api.github.com",
+    headers: {
+      accept: "application/vnd.github.v3+json",
+      "user-agent": userAgent
+    },
+    mediaType: {
+      format: ""
+    }
+  };
+  function lowercaseKeys(object) {
+    if (!object) {
+      return {};
+    }
+    return Object.keys(object).reduce((newObj, key) => {
+      newObj[key.toLowerCase()] = object[key];
+      return newObj;
+    }, {});
+  }
+  function isPlainObject(value) {
+    if (typeof value !== "object" || value === null)
+      return false;
+    if (Object.prototype.toString.call(value) !== "[object Object]")
+      return false;
+    const proto = Object.getPrototypeOf(value);
+    if (proto === null)
+      return true;
+    const Ctor = Object.prototype.hasOwnProperty.call(proto, "constructor") && proto.constructor;
+    return typeof Ctor === "function" && Ctor instanceof Ctor && Function.prototype.call(Ctor) === Function.prototype.call(value);
+  }
+  function mergeDeep(defaults, options) {
+    const result = Object.assign({}, defaults);
+    Object.keys(options).forEach((key) => {
+      if (isPlainObject(options[key])) {
+        if (!(key in defaults))
+          Object.assign(result, { [key]: options[key] });
+        else
+          result[key] = mergeDeep(defaults[key], options[key]);
+      } else {
+        Object.assign(result, { [key]: options[key] });
+      }
+    });
+    return result;
+  }
+  function removeUndefinedProperties(obj) {
+    for (const key in obj) {
+      if (obj[key] === undefined) {
+        delete obj[key];
+      }
+    }
+    return obj;
+  }
+  function merge(defaults, route, options) {
+    if (typeof route === "string") {
+      let [method, url] = route.split(" ");
+      options = Object.assign(url ? { method, url } : { url: method }, options);
+    } else {
+      options = Object.assign({}, route);
+    }
+    options.headers = lowercaseKeys(options.headers);
+    removeUndefinedProperties(options);
+    removeUndefinedProperties(options.headers);
+    const mergedOptions = mergeDeep(defaults || {}, options);
+    if (options.url === "/graphql") {
+      if (defaults && defaults.mediaType.previews?.length) {
+        mergedOptions.mediaType.previews = defaults.mediaType.previews.filter((preview) => !mergedOptions.mediaType.previews.includes(preview)).concat(mergedOptions.mediaType.previews);
+      }
+      mergedOptions.mediaType.previews = (mergedOptions.mediaType.previews || []).map((preview) => preview.replace(/-preview/, ""));
+    }
+    return mergedOptions;
+  }
+  function addQueryParameters(url, parameters) {
+    const separator = /\?/.test(url) ? "&" : "?";
+    const names = Object.keys(parameters);
+    if (names.length === 0) {
+      return url;
+    }
+    return url + separator + names.map((name) => {
+      if (name === "q") {
+        return "q=" + parameters.q.split("+").map(encodeURIComponent).join("+");
+      }
+      return `${name}=${encodeURIComponent(parameters[name])}`;
+    }).join("&");
+  }
+  var urlVariableRegex = /\{[^{}}]+\}/g;
+  function removeNonChars(variableName) {
+    return variableName.replace(/(?:^\W+)|(?:(?<!\W)\W+$)/g, "").split(/,/);
+  }
+  function extractUrlVariableNames(url) {
+    const matches = url.match(urlVariableRegex);
+    if (!matches) {
+      return [];
+    }
+    return matches.map(removeNonChars).reduce((a, b) => a.concat(b), []);
+  }
+  function omit(object, keysToOmit) {
+    const result = { __proto__: null };
+    for (const key of Object.keys(object)) {
+      if (keysToOmit.indexOf(key) === -1) {
+        result[key] = object[key];
+      }
+    }
+    return result;
+  }
+  function encodeReserved(str) {
+    return str.split(/(%[0-9A-Fa-f]{2})/g).map(function(part) {
+      if (!/%[0-9A-Fa-f]/.test(part)) {
+        part = encodeURI(part).replace(/%5B/g, "[").replace(/%5D/g, "]");
+      }
+      return part;
+    }).join("");
+  }
+  function encodeUnreserved(str) {
+    return encodeURIComponent(str).replace(/[!'()*]/g, function(c) {
+      return "%" + c.charCodeAt(0).toString(16).toUpperCase();
+    });
+  }
+  function encodeValue(operator, value, key) {
+    value = operator === "+" || operator === "#" ? encodeReserved(value) : encodeUnreserved(value);
+    if (key) {
+      return encodeUnreserved(key) + "=" + value;
+    } else {
+      return value;
+    }
+  }
+  function isDefined(value) {
+    return value !== undefined && value !== null;
+  }
+  function isKeyOperator(operator) {
+    return operator === ";" || operator === "&" || operator === "?";
+  }
+  function getValues(context, operator, key, modifier) {
+    var value = context[key], result = [];
+    if (isDefined(value) && value !== "") {
+      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        value = value.toString();
+        if (modifier && modifier !== "*") {
+          value = value.substring(0, parseInt(modifier, 10));
+        }
+        result.push(encodeValue(operator, value, isKeyOperator(operator) ? key : ""));
+      } else {
+        if (modifier === "*") {
+          if (Array.isArray(value)) {
+            value.filter(isDefined).forEach(function(value2) {
+              result.push(encodeValue(operator, value2, isKeyOperator(operator) ? key : ""));
+            });
+          } else {
+            Object.keys(value).forEach(function(k) {
+              if (isDefined(value[k])) {
+                result.push(encodeValue(operator, value[k], k));
+              }
+            });
+          }
+        } else {
+          const tmp = [];
+          if (Array.isArray(value)) {
+            value.filter(isDefined).forEach(function(value2) {
+              tmp.push(encodeValue(operator, value2));
+            });
+          } else {
+            Object.keys(value).forEach(function(k) {
+              if (isDefined(value[k])) {
+                tmp.push(encodeUnreserved(k));
+                tmp.push(encodeValue(operator, value[k].toString()));
+              }
+            });
+          }
+          if (isKeyOperator(operator)) {
+            result.push(encodeUnreserved(key) + "=" + tmp.join(","));
+          } else if (tmp.length !== 0) {
+            result.push(tmp.join(","));
+          }
+        }
+      }
+    } else {
+      if (operator === ";") {
+        if (isDefined(value)) {
+          result.push(encodeUnreserved(key));
+        }
+      } else if (value === "" && (operator === "&" || operator === "?")) {
+        result.push(encodeUnreserved(key) + "=");
+      } else if (value === "") {
+        result.push("");
+      }
+    }
+    return result;
+  }
+  function parseUrl(template) {
+    return {
+      expand: expand.bind(null, template)
+    };
+  }
+  function expand(template, context) {
+    var operators = ["+", "#", ".", "/", ";", "?", "&"];
+    template = template.replace(/\{([^\{\}]+)\}|([^\{\}]+)/g, function(_, expression, literal) {
+      if (expression) {
+        let operator = "";
+        const values = [];
+        if (operators.indexOf(expression.charAt(0)) !== -1) {
+          operator = expression.charAt(0);
+          expression = expression.substr(1);
+        }
+        expression.split(/,/g).forEach(function(variable) {
+          var tmp = /([^:\*]*)(?::(\d+)|(\*))?/.exec(variable);
+          values.push(getValues(context, operator, tmp[1], tmp[2] || tmp[3]));
+        });
+        if (operator && operator !== "+") {
+          var separator = ",";
+          if (operator === "?") {
+            separator = "&";
+          } else if (operator !== "#") {
+            separator = operator;
+          }
+          return (values.length !== 0 ? operator : "") + values.join(separator);
+        } else {
+          return values.join(",");
+        }
+      } else {
+        return encodeReserved(literal);
+      }
+    });
+    if (template === "/") {
+      return template;
+    } else {
+      return template.replace(/\/$/, "");
+    }
+  }
+  function parse(options) {
+    let method = options.method.toUpperCase();
+    let url = (options.url || "/").replace(/:([a-z]\w+)/g, "{$1}");
+    let headers = Object.assign({}, options.headers);
+    let body;
+    let parameters = omit(options, [
+      "method",
+      "baseUrl",
+      "url",
+      "headers",
+      "request",
+      "mediaType"
+    ]);
+    const urlVariableNames = extractUrlVariableNames(url);
+    url = parseUrl(url).expand(parameters);
+    if (!/^http/.test(url)) {
+      url = options.baseUrl + url;
+    }
+    const omittedParameters = Object.keys(options).filter((option) => urlVariableNames.includes(option)).concat("baseUrl");
+    const remainingParameters = omit(parameters, omittedParameters);
+    const isBinaryRequest = /application\/octet-stream/i.test(headers.accept);
+    if (!isBinaryRequest) {
+      if (options.mediaType.format) {
+        headers.accept = headers.accept.split(/,/).map((format) => format.replace(/application\/vnd(\.\w+)(\.v3)?(\.\w+)?(\+json)?$/, `application/vnd$1$2.${options.mediaType.format}`)).join(",");
+      }
+      if (url.endsWith("/graphql")) {
+        if (options.mediaType.previews?.length) {
+          const previewsFromAcceptHeader = headers.accept.match(/(?<![\w-])[\w-]+(?=-preview)/g) || [];
+          headers.accept = previewsFromAcceptHeader.concat(options.mediaType.previews).map((preview) => {
+            const format = options.mediaType.format ? `.${options.mediaType.format}` : "+json";
+            return `application/vnd.github.${preview}-preview${format}`;
+          }).join(",");
+        }
+      }
+    }
+    if (["GET", "HEAD"].includes(method)) {
+      url = addQueryParameters(url, remainingParameters);
+    } else {
+      if ("data" in remainingParameters) {
+        body = remainingParameters.data;
+      } else {
+        if (Object.keys(remainingParameters).length) {
+          body = remainingParameters;
+        }
+      }
+    }
+    if (!headers["content-type"] && typeof body !== "undefined") {
+      headers["content-type"] = "application/json; charset=utf-8";
+    }
+    if (["PATCH", "PUT"].includes(method) && typeof body === "undefined") {
+      body = "";
+    }
+    return Object.assign({ method, url, headers }, typeof body !== "undefined" ? { body } : null, options.request ? { request: options.request } : null);
+  }
+  function endpointWithDefaults(defaults, route, options) {
+    return parse(merge(defaults, route, options));
+  }
+  function withDefaults(oldDefaults, newDefaults) {
+    const DEFAULTS2 = merge(oldDefaults, newDefaults);
+    const endpoint2 = endpointWithDefaults.bind(null, DEFAULTS2);
+    return Object.assign(endpoint2, {
+      DEFAULTS: DEFAULTS2,
+      defaults: withDefaults.bind(null, DEFAULTS2),
+      merge: merge.bind(null, DEFAULTS2),
+      parse
+    });
+  }
+  var endpoint = withDefaults(null, DEFAULTS);
+});
+
+// node_modules/deprecation/dist-node/index.js
+var require_dist_node3 = __commonJS((exports) => {
+  Object.defineProperty(exports, "__esModule", { value: true });
+
+  class Deprecation extends Error {
+    constructor(message) {
+      super(message);
+      if (Error.captureStackTrace) {
+        Error.captureStackTrace(this, this.constructor);
+      }
+      this.name = "Deprecation";
+    }
+  }
+  exports.Deprecation = Deprecation;
+});
+
+// node_modules/wrappy/wrappy.js
+var require_wrappy = __commonJS((exports, module) => {
+  module.exports = wrappy;
+  function wrappy(fn, cb) {
+    if (fn && cb)
+      return wrappy(fn)(cb);
+    if (typeof fn !== "function")
+      throw new TypeError("need wrapper function");
+    Object.keys(fn).forEach(function(k) {
+      wrapper[k] = fn[k];
+    });
+    return wrapper;
+    function wrapper() {
+      var args = new Array(arguments.length);
+      for (var i = 0;i < args.length; i++) {
+        args[i] = arguments[i];
+      }
+      var ret = fn.apply(this, args);
+      var cb2 = args[args.length - 1];
+      if (typeof ret === "function" && ret !== cb2) {
+        Object.keys(cb2).forEach(function(k) {
+          ret[k] = cb2[k];
+        });
+      }
+      return ret;
+    }
+  }
+});
+
+// node_modules/once/once.js
+var require_once = __commonJS((exports, module) => {
+  var wrappy = require_wrappy();
+  module.exports = wrappy(once);
+  module.exports.strict = wrappy(onceStrict);
+  once.proto = once(function() {
+    Object.defineProperty(Function.prototype, "once", {
+      value: function() {
+        return once(this);
+      },
+      configurable: true
+    });
+    Object.defineProperty(Function.prototype, "onceStrict", {
+      value: function() {
+        return onceStrict(this);
+      },
+      configurable: true
+    });
+  });
+  function once(fn) {
+    var f = function() {
+      if (f.called)
+        return f.value;
+      f.called = true;
+      return f.value = fn.apply(this, arguments);
+    };
+    f.called = false;
+    return f;
+  }
+  function onceStrict(fn) {
+    var f = function() {
+      if (f.called)
+        throw new Error(f.onceError);
+      f.called = true;
+      return f.value = fn.apply(this, arguments);
+    };
+    var name = fn.name || "Function wrapped with `once`";
+    f.onceError = name + " shouldn't be called more than once";
+    f.called = false;
+    return f;
+  }
+});
+
+// node_modules/@octokit/request-error/dist-node/index.js
+var require_dist_node4 = __commonJS((exports, module) => {
+  var __create2 = Object.create;
+  var __defProp2 = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames2 = Object.getOwnPropertyNames;
+  var __getProtoOf2 = Object.getPrototypeOf;
+  var __hasOwnProp2 = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp2(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames2(from))
+        if (!__hasOwnProp2.call(to, key) && key !== except)
+          __defProp2(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toESM2 = (mod, isNodeMode, target) => (target = mod != null ? __create2(__getProtoOf2(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule ? __defProp2(target, "default", { value: mod, enumerable: true }) : target, mod));
+  var __toCommonJS = (mod) => __copyProps(__defProp2({}, "__esModule", { value: true }), mod);
+  var dist_src_exports = {};
+  __export(dist_src_exports, {
+    RequestError: () => RequestError
+  });
+  module.exports = __toCommonJS(dist_src_exports);
+  var import_deprecation = require_dist_node3();
+  var import_once = __toESM2(require_once());
+  var logOnceCode = (0, import_once.default)((deprecation) => console.warn(deprecation));
+  var logOnceHeaders = (0, import_once.default)((deprecation) => console.warn(deprecation));
+  var RequestError = class extends Error {
+    constructor(message, statusCode, options) {
+      super(message);
+      if (Error.captureStackTrace) {
+        Error.captureStackTrace(this, this.constructor);
+      }
+      this.name = "HttpError";
+      this.status = statusCode;
+      let headers;
+      if ("headers" in options && typeof options.headers !== "undefined") {
+        headers = options.headers;
+      }
+      if ("response" in options) {
+        this.response = options.response;
+        headers = options.response.headers;
+      }
+      const requestCopy = Object.assign({}, options.request);
+      if (options.request.headers.authorization) {
+        requestCopy.headers = Object.assign({}, options.request.headers, {
+          authorization: options.request.headers.authorization.replace(/(?<! ) .*$/, " [REDACTED]")
+        });
+      }
+      requestCopy.url = requestCopy.url.replace(/\bclient_secret=\w+/g, "client_secret=[REDACTED]").replace(/\baccess_token=\w+/g, "access_token=[REDACTED]");
+      this.request = requestCopy;
+      Object.defineProperty(this, "code", {
+        get() {
+          logOnceCode(new import_deprecation.Deprecation("[@octokit/request-error] `error.code` is deprecated, use `error.status`."));
+          return statusCode;
+        }
+      });
+      Object.defineProperty(this, "headers", {
+        get() {
+          logOnceHeaders(new import_deprecation.Deprecation("[@octokit/request-error] `error.headers` is deprecated, use `error.response.headers`."));
+          return headers || {};
+        }
+      });
+    }
+  };
+});
+
+// node_modules/@octokit/request/dist-node/index.js
+var require_dist_node5 = __commonJS((exports, module) => {
+  var __defProp2 = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames2 = Object.getOwnPropertyNames;
+  var __hasOwnProp2 = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp2(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames2(from))
+        if (!__hasOwnProp2.call(to, key) && key !== except)
+          __defProp2(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp2({}, "__esModule", { value: true }), mod);
+  var dist_src_exports = {};
+  __export(dist_src_exports, {
+    request: () => request
+  });
+  module.exports = __toCommonJS(dist_src_exports);
+  var import_endpoint = require_dist_node2();
+  var import_universal_user_agent = require_dist_node();
+  var VERSION = "8.4.1";
+  function isPlainObject(value) {
+    if (typeof value !== "object" || value === null)
+      return false;
+    if (Object.prototype.toString.call(value) !== "[object Object]")
+      return false;
+    const proto = Object.getPrototypeOf(value);
+    if (proto === null)
+      return true;
+    const Ctor = Object.prototype.hasOwnProperty.call(proto, "constructor") && proto.constructor;
+    return typeof Ctor === "function" && Ctor instanceof Ctor && Function.prototype.call(Ctor) === Function.prototype.call(value);
+  }
+  var import_request_error = require_dist_node4();
+  function getBufferResponse(response) {
+    return response.arrayBuffer();
+  }
+  function fetchWrapper(requestOptions) {
+    var _a, _b, _c, _d;
+    const log = requestOptions.request && requestOptions.request.log ? requestOptions.request.log : console;
+    const parseSuccessResponseBody = ((_a = requestOptions.request) == null ? undefined : _a.parseSuccessResponseBody) !== false;
+    if (isPlainObject(requestOptions.body) || Array.isArray(requestOptions.body)) {
+      requestOptions.body = JSON.stringify(requestOptions.body);
+    }
+    let headers = {};
+    let status;
+    let url;
+    let { fetch } = globalThis;
+    if ((_b = requestOptions.request) == null ? undefined : _b.fetch) {
+      fetch = requestOptions.request.fetch;
+    }
+    if (!fetch) {
+      throw new Error("fetch is not set. Please pass a fetch implementation as new Octokit({ request: { fetch }}). Learn more at https://github.com/octokit/octokit.js/#fetch-missing");
+    }
+    return fetch(requestOptions.url, {
+      method: requestOptions.method,
+      body: requestOptions.body,
+      redirect: (_c = requestOptions.request) == null ? undefined : _c.redirect,
+      headers: requestOptions.headers,
+      signal: (_d = requestOptions.request) == null ? undefined : _d.signal,
+      ...requestOptions.body && { duplex: "half" }
+    }).then(async (response) => {
+      url = response.url;
+      status = response.status;
+      for (const keyAndValue of response.headers) {
+        headers[keyAndValue[0]] = keyAndValue[1];
+      }
+      if ("deprecation" in headers) {
+        const matches = headers.link && headers.link.match(/<([^<>]+)>; rel="deprecation"/);
+        const deprecationLink = matches && matches.pop();
+        log.warn(`[@octokit/request] "${requestOptions.method} ${requestOptions.url}" is deprecated. It is scheduled to be removed on ${headers.sunset}${deprecationLink ? `. See ${deprecationLink}` : ""}`);
+      }
+      if (status === 204 || status === 205) {
+        return;
+      }
+      if (requestOptions.method === "HEAD") {
+        if (status < 400) {
+          return;
+        }
+        throw new import_request_error.RequestError(response.statusText, status, {
+          response: {
+            url,
+            status,
+            headers,
+            data: undefined
+          },
+          request: requestOptions
+        });
+      }
+      if (status === 304) {
+        throw new import_request_error.RequestError("Not modified", status, {
+          response: {
+            url,
+            status,
+            headers,
+            data: await getResponseData(response)
+          },
+          request: requestOptions
+        });
+      }
+      if (status >= 400) {
+        const data = await getResponseData(response);
+        const error = new import_request_error.RequestError(toErrorMessage(data), status, {
+          response: {
+            url,
+            status,
+            headers,
+            data
+          },
+          request: requestOptions
+        });
+        throw error;
+      }
+      return parseSuccessResponseBody ? await getResponseData(response) : response.body;
+    }).then((data) => {
+      return {
+        status,
+        url,
+        headers,
+        data
+      };
+    }).catch((error) => {
+      if (error instanceof import_request_error.RequestError)
+        throw error;
+      else if (error.name === "AbortError")
+        throw error;
+      let message = error.message;
+      if (error.name === "TypeError" && "cause" in error) {
+        if (error.cause instanceof Error) {
+          message = error.cause.message;
+        } else if (typeof error.cause === "string") {
+          message = error.cause;
+        }
+      }
+      throw new import_request_error.RequestError(message, 500, {
+        request: requestOptions
+      });
+    });
+  }
+  async function getResponseData(response) {
+    const contentType = response.headers.get("content-type");
+    if (/application\/json/.test(contentType)) {
+      return response.json().catch(() => response.text()).catch(() => "");
+    }
+    if (!contentType || /^text\/|charset=utf-8$/.test(contentType)) {
+      return response.text();
+    }
+    return getBufferResponse(response);
+  }
+  function toErrorMessage(data) {
+    if (typeof data === "string")
+      return data;
+    let suffix;
+    if ("documentation_url" in data) {
+      suffix = ` - ${data.documentation_url}`;
+    } else {
+      suffix = "";
+    }
+    if ("message" in data) {
+      if (Array.isArray(data.errors)) {
+        return `${data.message}: ${data.errors.map(JSON.stringify).join(", ")}${suffix}`;
+      }
+      return `${data.message}${suffix}`;
+    }
+    return `Unknown error: ${JSON.stringify(data)}`;
+  }
+  function withDefaults(oldEndpoint, newDefaults) {
+    const endpoint2 = oldEndpoint.defaults(newDefaults);
+    const newApi = function(route, parameters) {
+      const endpointOptions = endpoint2.merge(route, parameters);
+      if (!endpointOptions.request || !endpointOptions.request.hook) {
+        return fetchWrapper(endpoint2.parse(endpointOptions));
+      }
+      const request2 = (route2, parameters2) => {
+        return fetchWrapper(endpoint2.parse(endpoint2.merge(route2, parameters2)));
+      };
+      Object.assign(request2, {
+        endpoint: endpoint2,
+        defaults: withDefaults.bind(null, endpoint2)
+      });
+      return endpointOptions.request.hook(request2, endpointOptions);
+    };
+    return Object.assign(newApi, {
+      endpoint: endpoint2,
+      defaults: withDefaults.bind(null, endpoint2)
+    });
+  }
+  var request = withDefaults(import_endpoint.endpoint, {
+    headers: {
+      "user-agent": `octokit-request.js/${VERSION} ${(0, import_universal_user_agent.getUserAgent)()}`
+    }
+  });
+});
+
+// node_modules/@octokit/graphql/dist-node/index.js
+var require_dist_node6 = __commonJS((exports, module) => {
+  var __defProp2 = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames2 = Object.getOwnPropertyNames;
+  var __hasOwnProp2 = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp2(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames2(from))
+        if (!__hasOwnProp2.call(to, key) && key !== except)
+          __defProp2(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp2({}, "__esModule", { value: true }), mod);
+  var index_exports = {};
+  __export(index_exports, {
+    GraphqlResponseError: () => GraphqlResponseError,
+    graphql: () => graphql2,
+    withCustomRequest: () => withCustomRequest
+  });
+  module.exports = __toCommonJS(index_exports);
+  var import_request3 = require_dist_node5();
+  var import_universal_user_agent = require_dist_node();
+  var VERSION = "7.1.1";
+  var import_request2 = require_dist_node5();
+  var import_request = require_dist_node5();
+  function _buildMessageForResponseErrors(data) {
+    return `Request failed due to following response errors:
+` + data.errors.map((e) => ` - ${e.message}`).join(`
+`);
+  }
+  var GraphqlResponseError = class extends Error {
+    constructor(request2, headers, response) {
+      super(_buildMessageForResponseErrors(response));
+      this.request = request2;
+      this.headers = headers;
+      this.response = response;
+      this.name = "GraphqlResponseError";
+      this.errors = response.errors;
+      this.data = response.data;
+      if (Error.captureStackTrace) {
+        Error.captureStackTrace(this, this.constructor);
+      }
+    }
+  };
+  var NON_VARIABLE_OPTIONS = [
+    "method",
+    "baseUrl",
+    "url",
+    "headers",
+    "request",
+    "query",
+    "mediaType"
+  ];
+  var FORBIDDEN_VARIABLE_OPTIONS = ["query", "method", "url"];
+  var GHES_V3_SUFFIX_REGEX = /\/api\/v3\/?$/;
+  function graphql(request2, query, options) {
+    if (options) {
+      if (typeof query === "string" && "query" in options) {
+        return Promise.reject(new Error(`[@octokit/graphql] "query" cannot be used as variable name`));
+      }
+      for (const key in options) {
+        if (!FORBIDDEN_VARIABLE_OPTIONS.includes(key))
+          continue;
+        return Promise.reject(new Error(`[@octokit/graphql] "${key}" cannot be used as variable name`));
+      }
+    }
+    const parsedOptions = typeof query === "string" ? Object.assign({ query }, options) : query;
+    const requestOptions = Object.keys(parsedOptions).reduce((result, key) => {
+      if (NON_VARIABLE_OPTIONS.includes(key)) {
+        result[key] = parsedOptions[key];
+        return result;
+      }
+      if (!result.variables) {
+        result.variables = {};
+      }
+      result.variables[key] = parsedOptions[key];
+      return result;
+    }, {});
+    const baseUrl = parsedOptions.baseUrl || request2.endpoint.DEFAULTS.baseUrl;
+    if (GHES_V3_SUFFIX_REGEX.test(baseUrl)) {
+      requestOptions.url = baseUrl.replace(GHES_V3_SUFFIX_REGEX, "/api/graphql");
+    }
+    return request2(requestOptions).then((response) => {
+      if (response.data.errors) {
+        const headers = {};
+        for (const key of Object.keys(response.headers)) {
+          headers[key] = response.headers[key];
+        }
+        throw new GraphqlResponseError(requestOptions, headers, response.data);
+      }
+      return response.data.data;
+    });
+  }
+  function withDefaults(request2, newDefaults) {
+    const newRequest = request2.defaults(newDefaults);
+    const newApi = (query, options) => {
+      return graphql(newRequest, query, options);
+    };
+    return Object.assign(newApi, {
+      defaults: withDefaults.bind(null, newRequest),
+      endpoint: newRequest.endpoint
+    });
+  }
+  var graphql2 = withDefaults(import_request3.request, {
+    headers: {
+      "user-agent": `octokit-graphql.js/${VERSION} ${(0, import_universal_user_agent.getUserAgent)()}`
+    },
+    method: "POST",
+    url: "/graphql"
+  });
+  function withCustomRequest(customRequest) {
+    return withDefaults(customRequest, {
+      method: "POST",
+      url: "/graphql"
+    });
+  }
+});
+
+// node_modules/@octokit/auth-token/dist-node/index.js
+var require_dist_node7 = __commonJS((exports, module) => {
+  var __defProp2 = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames2 = Object.getOwnPropertyNames;
+  var __hasOwnProp2 = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp2(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames2(from))
+        if (!__hasOwnProp2.call(to, key) && key !== except)
+          __defProp2(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp2({}, "__esModule", { value: true }), mod);
+  var dist_src_exports = {};
+  __export(dist_src_exports, {
+    createTokenAuth: () => createTokenAuth
+  });
+  module.exports = __toCommonJS(dist_src_exports);
+  var REGEX_IS_INSTALLATION_LEGACY = /^v1\./;
+  var REGEX_IS_INSTALLATION = /^ghs_/;
+  var REGEX_IS_USER_TO_SERVER = /^ghu_/;
+  async function auth(token) {
+    const isApp = token.split(/\./).length === 3;
+    const isInstallation = REGEX_IS_INSTALLATION_LEGACY.test(token) || REGEX_IS_INSTALLATION.test(token);
+    const isUserToServer = REGEX_IS_USER_TO_SERVER.test(token);
+    const tokenType = isApp ? "app" : isInstallation ? "installation" : isUserToServer ? "user-to-server" : "oauth";
+    return {
+      type: "token",
+      token,
+      tokenType
+    };
+  }
+  function withAuthorizationPrefix(token) {
+    if (token.split(/\./).length === 3) {
+      return `bearer ${token}`;
+    }
+    return `token ${token}`;
+  }
+  async function hook(token, request, route, parameters) {
+    const endpoint = request.endpoint.merge(route, parameters);
+    endpoint.headers.authorization = withAuthorizationPrefix(token);
+    return request(endpoint);
+  }
+  var createTokenAuth = function createTokenAuth2(token) {
+    if (!token) {
+      throw new Error("[@octokit/auth-token] No token passed to createTokenAuth");
+    }
+    if (typeof token !== "string") {
+      throw new Error("[@octokit/auth-token] Token passed to createTokenAuth is not a string");
+    }
+    token = token.replace(/^(token|bearer) +/i, "");
+    return Object.assign(auth.bind(null, token), {
+      hook: hook.bind(null, token)
+    });
+  };
+});
+
+// node_modules/@octokit/core/dist-node/index.js
+var require_dist_node8 = __commonJS((exports, module) => {
+  var __defProp2 = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames2 = Object.getOwnPropertyNames;
+  var __hasOwnProp2 = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp2(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames2(from))
+        if (!__hasOwnProp2.call(to, key) && key !== except)
+          __defProp2(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp2({}, "__esModule", { value: true }), mod);
+  var index_exports = {};
+  __export(index_exports, {
+    Octokit: () => Octokit
+  });
+  module.exports = __toCommonJS(index_exports);
+  var import_universal_user_agent = require_dist_node();
+  var import_before_after_hook = require_before_after_hook();
+  var import_request = require_dist_node5();
+  var import_graphql = require_dist_node6();
+  var import_auth_token = require_dist_node7();
+  var VERSION = "5.2.2";
+  var noop = () => {};
+  var consoleWarn = console.warn.bind(console);
+  var consoleError = console.error.bind(console);
+  function createLogger(logger = {}) {
+    if (typeof logger.debug !== "function") {
+      logger.debug = noop;
+    }
+    if (typeof logger.info !== "function") {
+      logger.info = noop;
+    }
+    if (typeof logger.warn !== "function") {
+      logger.warn = consoleWarn;
+    }
+    if (typeof logger.error !== "function") {
+      logger.error = consoleError;
+    }
+    return logger;
+  }
+  var userAgentTrail = `octokit-core.js/${VERSION} ${(0, import_universal_user_agent.getUserAgent)()}`;
+  var Octokit = class {
+    static {
+      this.VERSION = VERSION;
+    }
+    static defaults(defaults) {
+      const OctokitWithDefaults = class extends this {
+        constructor(...args) {
+          const options = args[0] || {};
+          if (typeof defaults === "function") {
+            super(defaults(options));
+            return;
+          }
+          super(Object.assign({}, defaults, options, options.userAgent && defaults.userAgent ? {
+            userAgent: `${options.userAgent} ${defaults.userAgent}`
+          } : null));
+        }
+      };
+      return OctokitWithDefaults;
+    }
+    static {
+      this.plugins = [];
+    }
+    static plugin(...newPlugins) {
+      const currentPlugins = this.plugins;
+      const NewOctokit = class extends this {
+        static {
+          this.plugins = currentPlugins.concat(newPlugins.filter((plugin) => !currentPlugins.includes(plugin)));
+        }
+      };
+      return NewOctokit;
+    }
+    constructor(options = {}) {
+      const hook = new import_before_after_hook.Collection;
+      const requestDefaults = {
+        baseUrl: import_request.request.endpoint.DEFAULTS.baseUrl,
+        headers: {},
+        request: Object.assign({}, options.request, {
+          hook: hook.bind(null, "request")
+        }),
+        mediaType: {
+          previews: [],
+          format: ""
+        }
+      };
+      requestDefaults.headers["user-agent"] = options.userAgent ? `${options.userAgent} ${userAgentTrail}` : userAgentTrail;
+      if (options.baseUrl) {
+        requestDefaults.baseUrl = options.baseUrl;
+      }
+      if (options.previews) {
+        requestDefaults.mediaType.previews = options.previews;
+      }
+      if (options.timeZone) {
+        requestDefaults.headers["time-zone"] = options.timeZone;
+      }
+      this.request = import_request.request.defaults(requestDefaults);
+      this.graphql = (0, import_graphql.withCustomRequest)(this.request).defaults(requestDefaults);
+      this.log = createLogger(options.log);
+      this.hook = hook;
+      if (!options.authStrategy) {
+        if (!options.auth) {
+          this.auth = async () => ({
+            type: "unauthenticated"
+          });
+        } else {
+          const auth = (0, import_auth_token.createTokenAuth)(options.auth);
+          hook.wrap("request", auth.hook);
+          this.auth = auth;
+        }
+      } else {
+        const { authStrategy, ...otherOptions } = options;
+        const auth = authStrategy(Object.assign({
+          request: this.request,
+          log: this.log,
+          octokit: this,
+          octokitOptions: otherOptions
+        }, options.auth));
+        hook.wrap("request", auth.hook);
+        this.auth = auth;
+      }
+      const classConstructor = this.constructor;
+      for (let i = 0;i < classConstructor.plugins.length; ++i) {
+        Object.assign(this, classConstructor.plugins[i](this, options));
+      }
+    }
+  };
+});
+
+// node_modules/@octokit/plugin-rest-endpoint-methods/dist-node/index.js
+var require_dist_node9 = __commonJS((exports, module) => {
+  var __defProp2 = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames2 = Object.getOwnPropertyNames;
+  var __hasOwnProp2 = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp2(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames2(from))
+        if (!__hasOwnProp2.call(to, key) && key !== except)
+          __defProp2(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp2({}, "__esModule", { value: true }), mod);
+  var dist_src_exports = {};
+  __export(dist_src_exports, {
+    legacyRestEndpointMethods: () => legacyRestEndpointMethods,
+    restEndpointMethods: () => restEndpointMethods
+  });
+  module.exports = __toCommonJS(dist_src_exports);
+  var VERSION = "10.4.1";
+  var Endpoints = {
+    actions: {
+      addCustomLabelsToSelfHostedRunnerForOrg: [
+        "POST /orgs/{org}/actions/runners/{runner_id}/labels"
+      ],
+      addCustomLabelsToSelfHostedRunnerForRepo: [
+        "POST /repos/{owner}/{repo}/actions/runners/{runner_id}/labels"
+      ],
+      addSelectedRepoToOrgSecret: [
+        "PUT /orgs/{org}/actions/secrets/{secret_name}/repositories/{repository_id}"
+      ],
+      addSelectedRepoToOrgVariable: [
+        "PUT /orgs/{org}/actions/variables/{name}/repositories/{repository_id}"
+      ],
+      approveWorkflowRun: [
+        "POST /repos/{owner}/{repo}/actions/runs/{run_id}/approve"
+      ],
+      cancelWorkflowRun: [
+        "POST /repos/{owner}/{repo}/actions/runs/{run_id}/cancel"
+      ],
+      createEnvironmentVariable: [
+        "POST /repositories/{repository_id}/environments/{environment_name}/variables"
+      ],
+      createOrUpdateEnvironmentSecret: [
+        "PUT /repositories/{repository_id}/environments/{environment_name}/secrets/{secret_name}"
+      ],
+      createOrUpdateOrgSecret: ["PUT /orgs/{org}/actions/secrets/{secret_name}"],
+      createOrUpdateRepoSecret: [
+        "PUT /repos/{owner}/{repo}/actions/secrets/{secret_name}"
+      ],
+      createOrgVariable: ["POST /orgs/{org}/actions/variables"],
+      createRegistrationTokenForOrg: [
+        "POST /orgs/{org}/actions/runners/registration-token"
+      ],
+      createRegistrationTokenForRepo: [
+        "POST /repos/{owner}/{repo}/actions/runners/registration-token"
+      ],
+      createRemoveTokenForOrg: ["POST /orgs/{org}/actions/runners/remove-token"],
+      createRemoveTokenForRepo: [
+        "POST /repos/{owner}/{repo}/actions/runners/remove-token"
+      ],
+      createRepoVariable: ["POST /repos/{owner}/{repo}/actions/variables"],
+      createWorkflowDispatch: [
+        "POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches"
+      ],
+      deleteActionsCacheById: [
+        "DELETE /repos/{owner}/{repo}/actions/caches/{cache_id}"
+      ],
+      deleteActionsCacheByKey: [
+        "DELETE /repos/{owner}/{repo}/actions/caches{?key,ref}"
+      ],
+      deleteArtifact: [
+        "DELETE /repos/{owner}/{repo}/actions/artifacts/{artifact_id}"
+      ],
+      deleteEnvironmentSecret: [
+        "DELETE /repositories/{repository_id}/environments/{environment_name}/secrets/{secret_name}"
+      ],
+      deleteEnvironmentVariable: [
+        "DELETE /repositories/{repository_id}/environments/{environment_name}/variables/{name}"
+      ],
+      deleteOrgSecret: ["DELETE /orgs/{org}/actions/secrets/{secret_name}"],
+      deleteOrgVariable: ["DELETE /orgs/{org}/actions/variables/{name}"],
+      deleteRepoSecret: [
+        "DELETE /repos/{owner}/{repo}/actions/secrets/{secret_name}"
+      ],
+      deleteRepoVariable: [
+        "DELETE /repos/{owner}/{repo}/actions/variables/{name}"
+      ],
+      deleteSelfHostedRunnerFromOrg: [
+        "DELETE /orgs/{org}/actions/runners/{runner_id}"
+      ],
+      deleteSelfHostedRunnerFromRepo: [
+        "DELETE /repos/{owner}/{repo}/actions/runners/{runner_id}"
+      ],
+      deleteWorkflowRun: ["DELETE /repos/{owner}/{repo}/actions/runs/{run_id}"],
+      deleteWorkflowRunLogs: [
+        "DELETE /repos/{owner}/{repo}/actions/runs/{run_id}/logs"
+      ],
+      disableSelectedRepositoryGithubActionsOrganization: [
+        "DELETE /orgs/{org}/actions/permissions/repositories/{repository_id}"
+      ],
+      disableWorkflow: [
+        "PUT /repos/{owner}/{repo}/actions/workflows/{workflow_id}/disable"
+      ],
+      downloadArtifact: [
+        "GET /repos/{owner}/{repo}/actions/artifacts/{artifact_id}/{archive_format}"
+      ],
+      downloadJobLogsForWorkflowRun: [
+        "GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs"
+      ],
+      downloadWorkflowRunAttemptLogs: [
+        "GET /repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt_number}/logs"
+      ],
+      downloadWorkflowRunLogs: [
+        "GET /repos/{owner}/{repo}/actions/runs/{run_id}/logs"
+      ],
+      enableSelectedRepositoryGithubActionsOrganization: [
+        "PUT /orgs/{org}/actions/permissions/repositories/{repository_id}"
+      ],
+      enableWorkflow: [
+        "PUT /repos/{owner}/{repo}/actions/workflows/{workflow_id}/enable"
+      ],
+      forceCancelWorkflowRun: [
+        "POST /repos/{owner}/{repo}/actions/runs/{run_id}/force-cancel"
+      ],
+      generateRunnerJitconfigForOrg: [
+        "POST /orgs/{org}/actions/runners/generate-jitconfig"
+      ],
+      generateRunnerJitconfigForRepo: [
+        "POST /repos/{owner}/{repo}/actions/runners/generate-jitconfig"
+      ],
+      getActionsCacheList: ["GET /repos/{owner}/{repo}/actions/caches"],
+      getActionsCacheUsage: ["GET /repos/{owner}/{repo}/actions/cache/usage"],
+      getActionsCacheUsageByRepoForOrg: [
+        "GET /orgs/{org}/actions/cache/usage-by-repository"
+      ],
+      getActionsCacheUsageForOrg: ["GET /orgs/{org}/actions/cache/usage"],
+      getAllowedActionsOrganization: [
+        "GET /orgs/{org}/actions/permissions/selected-actions"
+      ],
+      getAllowedActionsRepository: [
+        "GET /repos/{owner}/{repo}/actions/permissions/selected-actions"
+      ],
+      getArtifact: ["GET /repos/{owner}/{repo}/actions/artifacts/{artifact_id}"],
+      getCustomOidcSubClaimForRepo: [
+        "GET /repos/{owner}/{repo}/actions/oidc/customization/sub"
+      ],
+      getEnvironmentPublicKey: [
+        "GET /repositories/{repository_id}/environments/{environment_name}/secrets/public-key"
+      ],
+      getEnvironmentSecret: [
+        "GET /repositories/{repository_id}/environments/{environment_name}/secrets/{secret_name}"
+      ],
+      getEnvironmentVariable: [
+        "GET /repositories/{repository_id}/environments/{environment_name}/variables/{name}"
+      ],
+      getGithubActionsDefaultWorkflowPermissionsOrganization: [
+        "GET /orgs/{org}/actions/permissions/workflow"
+      ],
+      getGithubActionsDefaultWorkflowPermissionsRepository: [
+        "GET /repos/{owner}/{repo}/actions/permissions/workflow"
+      ],
+      getGithubActionsPermissionsOrganization: [
+        "GET /orgs/{org}/actions/permissions"
+      ],
+      getGithubActionsPermissionsRepository: [
+        "GET /repos/{owner}/{repo}/actions/permissions"
+      ],
+      getJobForWorkflowRun: ["GET /repos/{owner}/{repo}/actions/jobs/{job_id}"],
+      getOrgPublicKey: ["GET /orgs/{org}/actions/secrets/public-key"],
+      getOrgSecret: ["GET /orgs/{org}/actions/secrets/{secret_name}"],
+      getOrgVariable: ["GET /orgs/{org}/actions/variables/{name}"],
+      getPendingDeploymentsForRun: [
+        "GET /repos/{owner}/{repo}/actions/runs/{run_id}/pending_deployments"
+      ],
+      getRepoPermissions: [
+        "GET /repos/{owner}/{repo}/actions/permissions",
+        {},
+        { renamed: ["actions", "getGithubActionsPermissionsRepository"] }
+      ],
+      getRepoPublicKey: ["GET /repos/{owner}/{repo}/actions/secrets/public-key"],
+      getRepoSecret: ["GET /repos/{owner}/{repo}/actions/secrets/{secret_name}"],
+      getRepoVariable: ["GET /repos/{owner}/{repo}/actions/variables/{name}"],
+      getReviewsForRun: [
+        "GET /repos/{owner}/{repo}/actions/runs/{run_id}/approvals"
+      ],
+      getSelfHostedRunnerForOrg: ["GET /orgs/{org}/actions/runners/{runner_id}"],
+      getSelfHostedRunnerForRepo: [
+        "GET /repos/{owner}/{repo}/actions/runners/{runner_id}"
+      ],
+      getWorkflow: ["GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}"],
+      getWorkflowAccessToRepository: [
+        "GET /repos/{owner}/{repo}/actions/permissions/access"
+      ],
+      getWorkflowRun: ["GET /repos/{owner}/{repo}/actions/runs/{run_id}"],
+      getWorkflowRunAttempt: [
+        "GET /repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt_number}"
+      ],
+      getWorkflowRunUsage: [
+        "GET /repos/{owner}/{repo}/actions/runs/{run_id}/timing"
+      ],
+      getWorkflowUsage: [
+        "GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/timing"
+      ],
+      listArtifactsForRepo: ["GET /repos/{owner}/{repo}/actions/artifacts"],
+      listEnvironmentSecrets: [
+        "GET /repositories/{repository_id}/environments/{environment_name}/secrets"
+      ],
+      listEnvironmentVariables: [
+        "GET /repositories/{repository_id}/environments/{environment_name}/variables"
+      ],
+      listJobsForWorkflowRun: [
+        "GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs"
+      ],
+      listJobsForWorkflowRunAttempt: [
+        "GET /repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt_number}/jobs"
+      ],
+      listLabelsForSelfHostedRunnerForOrg: [
+        "GET /orgs/{org}/actions/runners/{runner_id}/labels"
+      ],
+      listLabelsForSelfHostedRunnerForRepo: [
+        "GET /repos/{owner}/{repo}/actions/runners/{runner_id}/labels"
+      ],
+      listOrgSecrets: ["GET /orgs/{org}/actions/secrets"],
+      listOrgVariables: ["GET /orgs/{org}/actions/variables"],
+      listRepoOrganizationSecrets: [
+        "GET /repos/{owner}/{repo}/actions/organization-secrets"
+      ],
+      listRepoOrganizationVariables: [
+        "GET /repos/{owner}/{repo}/actions/organization-variables"
+      ],
+      listRepoSecrets: ["GET /repos/{owner}/{repo}/actions/secrets"],
+      listRepoVariables: ["GET /repos/{owner}/{repo}/actions/variables"],
+      listRepoWorkflows: ["GET /repos/{owner}/{repo}/actions/workflows"],
+      listRunnerApplicationsForOrg: ["GET /orgs/{org}/actions/runners/downloads"],
+      listRunnerApplicationsForRepo: [
+        "GET /repos/{owner}/{repo}/actions/runners/downloads"
+      ],
+      listSelectedReposForOrgSecret: [
+        "GET /orgs/{org}/actions/secrets/{secret_name}/repositories"
+      ],
+      listSelectedReposForOrgVariable: [
+        "GET /orgs/{org}/actions/variables/{name}/repositories"
+      ],
+      listSelectedRepositoriesEnabledGithubActionsOrganization: [
+        "GET /orgs/{org}/actions/permissions/repositories"
+      ],
+      listSelfHostedRunnersForOrg: ["GET /orgs/{org}/actions/runners"],
+      listSelfHostedRunnersForRepo: ["GET /repos/{owner}/{repo}/actions/runners"],
+      listWorkflowRunArtifacts: [
+        "GET /repos/{owner}/{repo}/actions/runs/{run_id}/artifacts"
+      ],
+      listWorkflowRuns: [
+        "GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs"
+      ],
+      listWorkflowRunsForRepo: ["GET /repos/{owner}/{repo}/actions/runs"],
+      reRunJobForWorkflowRun: [
+        "POST /repos/{owner}/{repo}/actions/jobs/{job_id}/rerun"
+      ],
+      reRunWorkflow: ["POST /repos/{owner}/{repo}/actions/runs/{run_id}/rerun"],
+      reRunWorkflowFailedJobs: [
+        "POST /repos/{owner}/{repo}/actions/runs/{run_id}/rerun-failed-jobs"
+      ],
+      removeAllCustomLabelsFromSelfHostedRunnerForOrg: [
+        "DELETE /orgs/{org}/actions/runners/{runner_id}/labels"
+      ],
+      removeAllCustomLabelsFromSelfHostedRunnerForRepo: [
+        "DELETE /repos/{owner}/{repo}/actions/runners/{runner_id}/labels"
+      ],
+      removeCustomLabelFromSelfHostedRunnerForOrg: [
+        "DELETE /orgs/{org}/actions/runners/{runner_id}/labels/{name}"
+      ],
+      removeCustomLabelFromSelfHostedRunnerForRepo: [
+        "DELETE /repos/{owner}/{repo}/actions/runners/{runner_id}/labels/{name}"
+      ],
+      removeSelectedRepoFromOrgSecret: [
+        "DELETE /orgs/{org}/actions/secrets/{secret_name}/repositories/{repository_id}"
+      ],
+      removeSelectedRepoFromOrgVariable: [
+        "DELETE /orgs/{org}/actions/variables/{name}/repositories/{repository_id}"
+      ],
+      reviewCustomGatesForRun: [
+        "POST /repos/{owner}/{repo}/actions/runs/{run_id}/deployment_protection_rule"
+      ],
+      reviewPendingDeploymentsForRun: [
+        "POST /repos/{owner}/{repo}/actions/runs/{run_id}/pending_deployments"
+      ],
+      setAllowedActionsOrganization: [
+        "PUT /orgs/{org}/actions/permissions/selected-actions"
+      ],
+      setAllowedActionsRepository: [
+        "PUT /repos/{owner}/{repo}/actions/permissions/selected-actions"
+      ],
+      setCustomLabelsForSelfHostedRunnerForOrg: [
+        "PUT /orgs/{org}/actions/runners/{runner_id}/labels"
+      ],
+      setCustomLabelsForSelfHostedRunnerForRepo: [
+        "PUT /repos/{owner}/{repo}/actions/runners/{runner_id}/labels"
+      ],
+      setCustomOidcSubClaimForRepo: [
+        "PUT /repos/{owner}/{repo}/actions/oidc/customization/sub"
+      ],
+      setGithubActionsDefaultWorkflowPermissionsOrganization: [
+        "PUT /orgs/{org}/actions/permissions/workflow"
+      ],
+      setGithubActionsDefaultWorkflowPermissionsRepository: [
+        "PUT /repos/{owner}/{repo}/actions/permissions/workflow"
+      ],
+      setGithubActionsPermissionsOrganization: [
+        "PUT /orgs/{org}/actions/permissions"
+      ],
+      setGithubActionsPermissionsRepository: [
+        "PUT /repos/{owner}/{repo}/actions/permissions"
+      ],
+      setSelectedReposForOrgSecret: [
+        "PUT /orgs/{org}/actions/secrets/{secret_name}/repositories"
+      ],
+      setSelectedReposForOrgVariable: [
+        "PUT /orgs/{org}/actions/variables/{name}/repositories"
+      ],
+      setSelectedRepositoriesEnabledGithubActionsOrganization: [
+        "PUT /orgs/{org}/actions/permissions/repositories"
+      ],
+      setWorkflowAccessToRepository: [
+        "PUT /repos/{owner}/{repo}/actions/permissions/access"
+      ],
+      updateEnvironmentVariable: [
+        "PATCH /repositories/{repository_id}/environments/{environment_name}/variables/{name}"
+      ],
+      updateOrgVariable: ["PATCH /orgs/{org}/actions/variables/{name}"],
+      updateRepoVariable: [
+        "PATCH /repos/{owner}/{repo}/actions/variables/{name}"
+      ]
+    },
+    activity: {
+      checkRepoIsStarredByAuthenticatedUser: ["GET /user/starred/{owner}/{repo}"],
+      deleteRepoSubscription: ["DELETE /repos/{owner}/{repo}/subscription"],
+      deleteThreadSubscription: [
+        "DELETE /notifications/threads/{thread_id}/subscription"
+      ],
+      getFeeds: ["GET /feeds"],
+      getRepoSubscription: ["GET /repos/{owner}/{repo}/subscription"],
+      getThread: ["GET /notifications/threads/{thread_id}"],
+      getThreadSubscriptionForAuthenticatedUser: [
+        "GET /notifications/threads/{thread_id}/subscription"
+      ],
+      listEventsForAuthenticatedUser: ["GET /users/{username}/events"],
+      listNotificationsForAuthenticatedUser: ["GET /notifications"],
+      listOrgEventsForAuthenticatedUser: [
+        "GET /users/{username}/events/orgs/{org}"
+      ],
+      listPublicEvents: ["GET /events"],
+      listPublicEventsForRepoNetwork: ["GET /networks/{owner}/{repo}/events"],
+      listPublicEventsForUser: ["GET /users/{username}/events/public"],
+      listPublicOrgEvents: ["GET /orgs/{org}/events"],
+      listReceivedEventsForUser: ["GET /users/{username}/received_events"],
+      listReceivedPublicEventsForUser: [
+        "GET /users/{username}/received_events/public"
+      ],
+      listRepoEvents: ["GET /repos/{owner}/{repo}/events"],
+      listRepoNotificationsForAuthenticatedUser: [
+        "GET /repos/{owner}/{repo}/notifications"
+      ],
+      listReposStarredByAuthenticatedUser: ["GET /user/starred"],
+      listReposStarredByUser: ["GET /users/{username}/starred"],
+      listReposWatchedByUser: ["GET /users/{username}/subscriptions"],
+      listStargazersForRepo: ["GET /repos/{owner}/{repo}/stargazers"],
+      listWatchedReposForAuthenticatedUser: ["GET /user/subscriptions"],
+      listWatchersForRepo: ["GET /repos/{owner}/{repo}/subscribers"],
+      markNotificationsAsRead: ["PUT /notifications"],
+      markRepoNotificationsAsRead: ["PUT /repos/{owner}/{repo}/notifications"],
+      markThreadAsDone: ["DELETE /notifications/threads/{thread_id}"],
+      markThreadAsRead: ["PATCH /notifications/threads/{thread_id}"],
+      setRepoSubscription: ["PUT /repos/{owner}/{repo}/subscription"],
+      setThreadSubscription: [
+        "PUT /notifications/threads/{thread_id}/subscription"
+      ],
+      starRepoForAuthenticatedUser: ["PUT /user/starred/{owner}/{repo}"],
+      unstarRepoForAuthenticatedUser: ["DELETE /user/starred/{owner}/{repo}"]
+    },
+    apps: {
+      addRepoToInstallation: [
+        "PUT /user/installations/{installation_id}/repositories/{repository_id}",
+        {},
+        { renamed: ["apps", "addRepoToInstallationForAuthenticatedUser"] }
+      ],
+      addRepoToInstallationForAuthenticatedUser: [
+        "PUT /user/installations/{installation_id}/repositories/{repository_id}"
+      ],
+      checkToken: ["POST /applications/{client_id}/token"],
+      createFromManifest: ["POST /app-manifests/{code}/conversions"],
+      createInstallationAccessToken: [
+        "POST /app/installations/{installation_id}/access_tokens"
+      ],
+      deleteAuthorization: ["DELETE /applications/{client_id}/grant"],
+      deleteInstallation: ["DELETE /app/installations/{installation_id}"],
+      deleteToken: ["DELETE /applications/{client_id}/token"],
+      getAuthenticated: ["GET /app"],
+      getBySlug: ["GET /apps/{app_slug}"],
+      getInstallation: ["GET /app/installations/{installation_id}"],
+      getOrgInstallation: ["GET /orgs/{org}/installation"],
+      getRepoInstallation: ["GET /repos/{owner}/{repo}/installation"],
+      getSubscriptionPlanForAccount: [
+        "GET /marketplace_listing/accounts/{account_id}"
+      ],
+      getSubscriptionPlanForAccountStubbed: [
+        "GET /marketplace_listing/stubbed/accounts/{account_id}"
+      ],
+      getUserInstallation: ["GET /users/{username}/installation"],
+      getWebhookConfigForApp: ["GET /app/hook/config"],
+      getWebhookDelivery: ["GET /app/hook/deliveries/{delivery_id}"],
+      listAccountsForPlan: ["GET /marketplace_listing/plans/{plan_id}/accounts"],
+      listAccountsForPlanStubbed: [
+        "GET /marketplace_listing/stubbed/plans/{plan_id}/accounts"
+      ],
+      listInstallationReposForAuthenticatedUser: [
+        "GET /user/installations/{installation_id}/repositories"
+      ],
+      listInstallationRequestsForAuthenticatedApp: [
+        "GET /app/installation-requests"
+      ],
+      listInstallations: ["GET /app/installations"],
+      listInstallationsForAuthenticatedUser: ["GET /user/installations"],
+      listPlans: ["GET /marketplace_listing/plans"],
+      listPlansStubbed: ["GET /marketplace_listing/stubbed/plans"],
+      listReposAccessibleToInstallation: ["GET /installation/repositories"],
+      listSubscriptionsForAuthenticatedUser: ["GET /user/marketplace_purchases"],
+      listSubscriptionsForAuthenticatedUserStubbed: [
+        "GET /user/marketplace_purchases/stubbed"
+      ],
+      listWebhookDeliveries: ["GET /app/hook/deliveries"],
+      redeliverWebhookDelivery: [
+        "POST /app/hook/deliveries/{delivery_id}/attempts"
+      ],
+      removeRepoFromInstallation: [
+        "DELETE /user/installations/{installation_id}/repositories/{repository_id}",
+        {},
+        { renamed: ["apps", "removeRepoFromInstallationForAuthenticatedUser"] }
+      ],
+      removeRepoFromInstallationForAuthenticatedUser: [
+        "DELETE /user/installations/{installation_id}/repositories/{repository_id}"
+      ],
+      resetToken: ["PATCH /applications/{client_id}/token"],
+      revokeInstallationAccessToken: ["DELETE /installation/token"],
+      scopeToken: ["POST /applications/{client_id}/token/scoped"],
+      suspendInstallation: ["PUT /app/installations/{installation_id}/suspended"],
+      unsuspendInstallation: [
+        "DELETE /app/installations/{installation_id}/suspended"
+      ],
+      updateWebhookConfigForApp: ["PATCH /app/hook/config"]
+    },
+    billing: {
+      getGithubActionsBillingOrg: ["GET /orgs/{org}/settings/billing/actions"],
+      getGithubActionsBillingUser: [
+        "GET /users/{username}/settings/billing/actions"
+      ],
+      getGithubPackagesBillingOrg: ["GET /orgs/{org}/settings/billing/packages"],
+      getGithubPackagesBillingUser: [
+        "GET /users/{username}/settings/billing/packages"
+      ],
+      getSharedStorageBillingOrg: [
+        "GET /orgs/{org}/settings/billing/shared-storage"
+      ],
+      getSharedStorageBillingUser: [
+        "GET /users/{username}/settings/billing/shared-storage"
+      ]
+    },
+    checks: {
+      create: ["POST /repos/{owner}/{repo}/check-runs"],
+      createSuite: ["POST /repos/{owner}/{repo}/check-suites"],
+      get: ["GET /repos/{owner}/{repo}/check-runs/{check_run_id}"],
+      getSuite: ["GET /repos/{owner}/{repo}/check-suites/{check_suite_id}"],
+      listAnnotations: [
+        "GET /repos/{owner}/{repo}/check-runs/{check_run_id}/annotations"
+      ],
+      listForRef: ["GET /repos/{owner}/{repo}/commits/{ref}/check-runs"],
+      listForSuite: [
+        "GET /repos/{owner}/{repo}/check-suites/{check_suite_id}/check-runs"
+      ],
+      listSuitesForRef: ["GET /repos/{owner}/{repo}/commits/{ref}/check-suites"],
+      rerequestRun: [
+        "POST /repos/{owner}/{repo}/check-runs/{check_run_id}/rerequest"
+      ],
+      rerequestSuite: [
+        "POST /repos/{owner}/{repo}/check-suites/{check_suite_id}/rerequest"
+      ],
+      setSuitesPreferences: [
+        "PATCH /repos/{owner}/{repo}/check-suites/preferences"
+      ],
+      update: ["PATCH /repos/{owner}/{repo}/check-runs/{check_run_id}"]
+    },
+    codeScanning: {
+      deleteAnalysis: [
+        "DELETE /repos/{owner}/{repo}/code-scanning/analyses/{analysis_id}{?confirm_delete}"
+      ],
+      getAlert: [
+        "GET /repos/{owner}/{repo}/code-scanning/alerts/{alert_number}",
+        {},
+        { renamedParameters: { alert_id: "alert_number" } }
+      ],
+      getAnalysis: [
+        "GET /repos/{owner}/{repo}/code-scanning/analyses/{analysis_id}"
+      ],
+      getCodeqlDatabase: [
+        "GET /repos/{owner}/{repo}/code-scanning/codeql/databases/{language}"
+      ],
+      getDefaultSetup: ["GET /repos/{owner}/{repo}/code-scanning/default-setup"],
+      getSarif: ["GET /repos/{owner}/{repo}/code-scanning/sarifs/{sarif_id}"],
+      listAlertInstances: [
+        "GET /repos/{owner}/{repo}/code-scanning/alerts/{alert_number}/instances"
+      ],
+      listAlertsForOrg: ["GET /orgs/{org}/code-scanning/alerts"],
+      listAlertsForRepo: ["GET /repos/{owner}/{repo}/code-scanning/alerts"],
+      listAlertsInstances: [
+        "GET /repos/{owner}/{repo}/code-scanning/alerts/{alert_number}/instances",
+        {},
+        { renamed: ["codeScanning", "listAlertInstances"] }
+      ],
+      listCodeqlDatabases: [
+        "GET /repos/{owner}/{repo}/code-scanning/codeql/databases"
+      ],
+      listRecentAnalyses: ["GET /repos/{owner}/{repo}/code-scanning/analyses"],
+      updateAlert: [
+        "PATCH /repos/{owner}/{repo}/code-scanning/alerts/{alert_number}"
+      ],
+      updateDefaultSetup: [
+        "PATCH /repos/{owner}/{repo}/code-scanning/default-setup"
+      ],
+      uploadSarif: ["POST /repos/{owner}/{repo}/code-scanning/sarifs"]
+    },
+    codesOfConduct: {
+      getAllCodesOfConduct: ["GET /codes_of_conduct"],
+      getConductCode: ["GET /codes_of_conduct/{key}"]
+    },
+    codespaces: {
+      addRepositoryForSecretForAuthenticatedUser: [
+        "PUT /user/codespaces/secrets/{secret_name}/repositories/{repository_id}"
+      ],
+      addSelectedRepoToOrgSecret: [
+        "PUT /orgs/{org}/codespaces/secrets/{secret_name}/repositories/{repository_id}"
+      ],
+      checkPermissionsForDevcontainer: [
+        "GET /repos/{owner}/{repo}/codespaces/permissions_check"
+      ],
+      codespaceMachinesForAuthenticatedUser: [
+        "GET /user/codespaces/{codespace_name}/machines"
+      ],
+      createForAuthenticatedUser: ["POST /user/codespaces"],
+      createOrUpdateOrgSecret: [
+        "PUT /orgs/{org}/codespaces/secrets/{secret_name}"
+      ],
+      createOrUpdateRepoSecret: [
+        "PUT /repos/{owner}/{repo}/codespaces/secrets/{secret_name}"
+      ],
+      createOrUpdateSecretForAuthenticatedUser: [
+        "PUT /user/codespaces/secrets/{secret_name}"
+      ],
+      createWithPrForAuthenticatedUser: [
+        "POST /repos/{owner}/{repo}/pulls/{pull_number}/codespaces"
+      ],
+      createWithRepoForAuthenticatedUser: [
+        "POST /repos/{owner}/{repo}/codespaces"
+      ],
+      deleteForAuthenticatedUser: ["DELETE /user/codespaces/{codespace_name}"],
+      deleteFromOrganization: [
+        "DELETE /orgs/{org}/members/{username}/codespaces/{codespace_name}"
+      ],
+      deleteOrgSecret: ["DELETE /orgs/{org}/codespaces/secrets/{secret_name}"],
+      deleteRepoSecret: [
+        "DELETE /repos/{owner}/{repo}/codespaces/secrets/{secret_name}"
+      ],
+      deleteSecretForAuthenticatedUser: [
+        "DELETE /user/codespaces/secrets/{secret_name}"
+      ],
+      exportForAuthenticatedUser: [
+        "POST /user/codespaces/{codespace_name}/exports"
+      ],
+      getCodespacesForUserInOrg: [
+        "GET /orgs/{org}/members/{username}/codespaces"
+      ],
+      getExportDetailsForAuthenticatedUser: [
+        "GET /user/codespaces/{codespace_name}/exports/{export_id}"
+      ],
+      getForAuthenticatedUser: ["GET /user/codespaces/{codespace_name}"],
+      getOrgPublicKey: ["GET /orgs/{org}/codespaces/secrets/public-key"],
+      getOrgSecret: ["GET /orgs/{org}/codespaces/secrets/{secret_name}"],
+      getPublicKeyForAuthenticatedUser: [
+        "GET /user/codespaces/secrets/public-key"
+      ],
+      getRepoPublicKey: [
+        "GET /repos/{owner}/{repo}/codespaces/secrets/public-key"
+      ],
+      getRepoSecret: [
+        "GET /repos/{owner}/{repo}/codespaces/secrets/{secret_name}"
+      ],
+      getSecretForAuthenticatedUser: [
+        "GET /user/codespaces/secrets/{secret_name}"
+      ],
+      listDevcontainersInRepositoryForAuthenticatedUser: [
+        "GET /repos/{owner}/{repo}/codespaces/devcontainers"
+      ],
+      listForAuthenticatedUser: ["GET /user/codespaces"],
+      listInOrganization: [
+        "GET /orgs/{org}/codespaces",
+        {},
+        { renamedParameters: { org_id: "org" } }
+      ],
+      listInRepositoryForAuthenticatedUser: [
+        "GET /repos/{owner}/{repo}/codespaces"
+      ],
+      listOrgSecrets: ["GET /orgs/{org}/codespaces/secrets"],
+      listRepoSecrets: ["GET /repos/{owner}/{repo}/codespaces/secrets"],
+      listRepositoriesForSecretForAuthenticatedUser: [
+        "GET /user/codespaces/secrets/{secret_name}/repositories"
+      ],
+      listSecretsForAuthenticatedUser: ["GET /user/codespaces/secrets"],
+      listSelectedReposForOrgSecret: [
+        "GET /orgs/{org}/codespaces/secrets/{secret_name}/repositories"
+      ],
+      preFlightWithRepoForAuthenticatedUser: [
+        "GET /repos/{owner}/{repo}/codespaces/new"
+      ],
+      publishForAuthenticatedUser: [
+        "POST /user/codespaces/{codespace_name}/publish"
+      ],
+      removeRepositoryForSecretForAuthenticatedUser: [
+        "DELETE /user/codespaces/secrets/{secret_name}/repositories/{repository_id}"
+      ],
+      removeSelectedRepoFromOrgSecret: [
+        "DELETE /orgs/{org}/codespaces/secrets/{secret_name}/repositories/{repository_id}"
+      ],
+      repoMachinesForAuthenticatedUser: [
+        "GET /repos/{owner}/{repo}/codespaces/machines"
+      ],
+      setRepositoriesForSecretForAuthenticatedUser: [
+        "PUT /user/codespaces/secrets/{secret_name}/repositories"
+      ],
+      setSelectedReposForOrgSecret: [
+        "PUT /orgs/{org}/codespaces/secrets/{secret_name}/repositories"
+      ],
+      startForAuthenticatedUser: ["POST /user/codespaces/{codespace_name}/start"],
+      stopForAuthenticatedUser: ["POST /user/codespaces/{codespace_name}/stop"],
+      stopInOrganization: [
+        "POST /orgs/{org}/members/{username}/codespaces/{codespace_name}/stop"
+      ],
+      updateForAuthenticatedUser: ["PATCH /user/codespaces/{codespace_name}"]
+    },
+    copilot: {
+      addCopilotSeatsForTeams: [
+        "POST /orgs/{org}/copilot/billing/selected_teams"
+      ],
+      addCopilotSeatsForUsers: [
+        "POST /orgs/{org}/copilot/billing/selected_users"
+      ],
+      cancelCopilotSeatAssignmentForTeams: [
+        "DELETE /orgs/{org}/copilot/billing/selected_teams"
+      ],
+      cancelCopilotSeatAssignmentForUsers: [
+        "DELETE /orgs/{org}/copilot/billing/selected_users"
+      ],
+      getCopilotOrganizationDetails: ["GET /orgs/{org}/copilot/billing"],
+      getCopilotSeatDetailsForUser: [
+        "GET /orgs/{org}/members/{username}/copilot"
+      ],
+      listCopilotSeats: ["GET /orgs/{org}/copilot/billing/seats"]
+    },
+    dependabot: {
+      addSelectedRepoToOrgSecret: [
+        "PUT /orgs/{org}/dependabot/secrets/{secret_name}/repositories/{repository_id}"
+      ],
+      createOrUpdateOrgSecret: [
+        "PUT /orgs/{org}/dependabot/secrets/{secret_name}"
+      ],
+      createOrUpdateRepoSecret: [
+        "PUT /repos/{owner}/{repo}/dependabot/secrets/{secret_name}"
+      ],
+      deleteOrgSecret: ["DELETE /orgs/{org}/dependabot/secrets/{secret_name}"],
+      deleteRepoSecret: [
+        "DELETE /repos/{owner}/{repo}/dependabot/secrets/{secret_name}"
+      ],
+      getAlert: ["GET /repos/{owner}/{repo}/dependabot/alerts/{alert_number}"],
+      getOrgPublicKey: ["GET /orgs/{org}/dependabot/secrets/public-key"],
+      getOrgSecret: ["GET /orgs/{org}/dependabot/secrets/{secret_name}"],
+      getRepoPublicKey: [
+        "GET /repos/{owner}/{repo}/dependabot/secrets/public-key"
+      ],
+      getRepoSecret: [
+        "GET /repos/{owner}/{repo}/dependabot/secrets/{secret_name}"
+      ],
+      listAlertsForEnterprise: [
+        "GET /enterprises/{enterprise}/dependabot/alerts"
+      ],
+      listAlertsForOrg: ["GET /orgs/{org}/dependabot/alerts"],
+      listAlertsForRepo: ["GET /repos/{owner}/{repo}/dependabot/alerts"],
+      listOrgSecrets: ["GET /orgs/{org}/dependabot/secrets"],
+      listRepoSecrets: ["GET /repos/{owner}/{repo}/dependabot/secrets"],
+      listSelectedReposForOrgSecret: [
+        "GET /orgs/{org}/dependabot/secrets/{secret_name}/repositories"
+      ],
+      removeSelectedRepoFromOrgSecret: [
+        "DELETE /orgs/{org}/dependabot/secrets/{secret_name}/repositories/{repository_id}"
+      ],
+      setSelectedReposForOrgSecret: [
+        "PUT /orgs/{org}/dependabot/secrets/{secret_name}/repositories"
+      ],
+      updateAlert: [
+        "PATCH /repos/{owner}/{repo}/dependabot/alerts/{alert_number}"
+      ]
+    },
+    dependencyGraph: {
+      createRepositorySnapshot: [
+        "POST /repos/{owner}/{repo}/dependency-graph/snapshots"
+      ],
+      diffRange: [
+        "GET /repos/{owner}/{repo}/dependency-graph/compare/{basehead}"
+      ],
+      exportSbom: ["GET /repos/{owner}/{repo}/dependency-graph/sbom"]
+    },
+    emojis: { get: ["GET /emojis"] },
+    gists: {
+      checkIsStarred: ["GET /gists/{gist_id}/star"],
+      create: ["POST /gists"],
+      createComment: ["POST /gists/{gist_id}/comments"],
+      delete: ["DELETE /gists/{gist_id}"],
+      deleteComment: ["DELETE /gists/{gist_id}/comments/{comment_id}"],
+      fork: ["POST /gists/{gist_id}/forks"],
+      get: ["GET /gists/{gist_id}"],
+      getComment: ["GET /gists/{gist_id}/comments/{comment_id}"],
+      getRevision: ["GET /gists/{gist_id}/{sha}"],
+      list: ["GET /gists"],
+      listComments: ["GET /gists/{gist_id}/comments"],
+      listCommits: ["GET /gists/{gist_id}/commits"],
+      listForUser: ["GET /users/{username}/gists"],
+      listForks: ["GET /gists/{gist_id}/forks"],
+      listPublic: ["GET /gists/public"],
+      listStarred: ["GET /gists/starred"],
+      star: ["PUT /gists/{gist_id}/star"],
+      unstar: ["DELETE /gists/{gist_id}/star"],
+      update: ["PATCH /gists/{gist_id}"],
+      updateComment: ["PATCH /gists/{gist_id}/comments/{comment_id}"]
+    },
+    git: {
+      createBlob: ["POST /repos/{owner}/{repo}/git/blobs"],
+      createCommit: ["POST /repos/{owner}/{repo}/git/commits"],
+      createRef: ["POST /repos/{owner}/{repo}/git/refs"],
+      createTag: ["POST /repos/{owner}/{repo}/git/tags"],
+      createTree: ["POST /repos/{owner}/{repo}/git/trees"],
+      deleteRef: ["DELETE /repos/{owner}/{repo}/git/refs/{ref}"],
+      getBlob: ["GET /repos/{owner}/{repo}/git/blobs/{file_sha}"],
+      getCommit: ["GET /repos/{owner}/{repo}/git/commits/{commit_sha}"],
+      getRef: ["GET /repos/{owner}/{repo}/git/ref/{ref}"],
+      getTag: ["GET /repos/{owner}/{repo}/git/tags/{tag_sha}"],
+      getTree: ["GET /repos/{owner}/{repo}/git/trees/{tree_sha}"],
+      listMatchingRefs: ["GET /repos/{owner}/{repo}/git/matching-refs/{ref}"],
+      updateRef: ["PATCH /repos/{owner}/{repo}/git/refs/{ref}"]
+    },
+    gitignore: {
+      getAllTemplates: ["GET /gitignore/templates"],
+      getTemplate: ["GET /gitignore/templates/{name}"]
+    },
+    interactions: {
+      getRestrictionsForAuthenticatedUser: ["GET /user/interaction-limits"],
+      getRestrictionsForOrg: ["GET /orgs/{org}/interaction-limits"],
+      getRestrictionsForRepo: ["GET /repos/{owner}/{repo}/interaction-limits"],
+      getRestrictionsForYourPublicRepos: [
+        "GET /user/interaction-limits",
+        {},
+        { renamed: ["interactions", "getRestrictionsForAuthenticatedUser"] }
+      ],
+      removeRestrictionsForAuthenticatedUser: ["DELETE /user/interaction-limits"],
+      removeRestrictionsForOrg: ["DELETE /orgs/{org}/interaction-limits"],
+      removeRestrictionsForRepo: [
+        "DELETE /repos/{owner}/{repo}/interaction-limits"
+      ],
+      removeRestrictionsForYourPublicRepos: [
+        "DELETE /user/interaction-limits",
+        {},
+        { renamed: ["interactions", "removeRestrictionsForAuthenticatedUser"] }
+      ],
+      setRestrictionsForAuthenticatedUser: ["PUT /user/interaction-limits"],
+      setRestrictionsForOrg: ["PUT /orgs/{org}/interaction-limits"],
+      setRestrictionsForRepo: ["PUT /repos/{owner}/{repo}/interaction-limits"],
+      setRestrictionsForYourPublicRepos: [
+        "PUT /user/interaction-limits",
+        {},
+        { renamed: ["interactions", "setRestrictionsForAuthenticatedUser"] }
+      ]
+    },
+    issues: {
+      addAssignees: [
+        "POST /repos/{owner}/{repo}/issues/{issue_number}/assignees"
+      ],
+      addLabels: ["POST /repos/{owner}/{repo}/issues/{issue_number}/labels"],
+      checkUserCanBeAssigned: ["GET /repos/{owner}/{repo}/assignees/{assignee}"],
+      checkUserCanBeAssignedToIssue: [
+        "GET /repos/{owner}/{repo}/issues/{issue_number}/assignees/{assignee}"
+      ],
+      create: ["POST /repos/{owner}/{repo}/issues"],
+      createComment: [
+        "POST /repos/{owner}/{repo}/issues/{issue_number}/comments"
+      ],
+      createLabel: ["POST /repos/{owner}/{repo}/labels"],
+      createMilestone: ["POST /repos/{owner}/{repo}/milestones"],
+      deleteComment: [
+        "DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}"
+      ],
+      deleteLabel: ["DELETE /repos/{owner}/{repo}/labels/{name}"],
+      deleteMilestone: [
+        "DELETE /repos/{owner}/{repo}/milestones/{milestone_number}"
+      ],
+      get: ["GET /repos/{owner}/{repo}/issues/{issue_number}"],
+      getComment: ["GET /repos/{owner}/{repo}/issues/comments/{comment_id}"],
+      getEvent: ["GET /repos/{owner}/{repo}/issues/events/{event_id}"],
+      getLabel: ["GET /repos/{owner}/{repo}/labels/{name}"],
+      getMilestone: ["GET /repos/{owner}/{repo}/milestones/{milestone_number}"],
+      list: ["GET /issues"],
+      listAssignees: ["GET /repos/{owner}/{repo}/assignees"],
+      listComments: ["GET /repos/{owner}/{repo}/issues/{issue_number}/comments"],
+      listCommentsForRepo: ["GET /repos/{owner}/{repo}/issues/comments"],
+      listEvents: ["GET /repos/{owner}/{repo}/issues/{issue_number}/events"],
+      listEventsForRepo: ["GET /repos/{owner}/{repo}/issues/events"],
+      listEventsForTimeline: [
+        "GET /repos/{owner}/{repo}/issues/{issue_number}/timeline"
+      ],
+      listForAuthenticatedUser: ["GET /user/issues"],
+      listForOrg: ["GET /orgs/{org}/issues"],
+      listForRepo: ["GET /repos/{owner}/{repo}/issues"],
+      listLabelsForMilestone: [
+        "GET /repos/{owner}/{repo}/milestones/{milestone_number}/labels"
+      ],
+      listLabelsForRepo: ["GET /repos/{owner}/{repo}/labels"],
+      listLabelsOnIssue: [
+        "GET /repos/{owner}/{repo}/issues/{issue_number}/labels"
+      ],
+      listMilestones: ["GET /repos/{owner}/{repo}/milestones"],
+      lock: ["PUT /repos/{owner}/{repo}/issues/{issue_number}/lock"],
+      removeAllLabels: [
+        "DELETE /repos/{owner}/{repo}/issues/{issue_number}/labels"
+      ],
+      removeAssignees: [
+        "DELETE /repos/{owner}/{repo}/issues/{issue_number}/assignees"
+      ],
+      removeLabel: [
+        "DELETE /repos/{owner}/{repo}/issues/{issue_number}/labels/{name}"
+      ],
+      setLabels: ["PUT /repos/{owner}/{repo}/issues/{issue_number}/labels"],
+      unlock: ["DELETE /repos/{owner}/{repo}/issues/{issue_number}/lock"],
+      update: ["PATCH /repos/{owner}/{repo}/issues/{issue_number}"],
+      updateComment: ["PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}"],
+      updateLabel: ["PATCH /repos/{owner}/{repo}/labels/{name}"],
+      updateMilestone: [
+        "PATCH /repos/{owner}/{repo}/milestones/{milestone_number}"
+      ]
+    },
+    licenses: {
+      get: ["GET /licenses/{license}"],
+      getAllCommonlyUsed: ["GET /licenses"],
+      getForRepo: ["GET /repos/{owner}/{repo}/license"]
+    },
+    markdown: {
+      render: ["POST /markdown"],
+      renderRaw: [
+        "POST /markdown/raw",
+        { headers: { "content-type": "text/plain; charset=utf-8" } }
+      ]
+    },
+    meta: {
+      get: ["GET /meta"],
+      getAllVersions: ["GET /versions"],
+      getOctocat: ["GET /octocat"],
+      getZen: ["GET /zen"],
+      root: ["GET /"]
+    },
+    migrations: {
+      cancelImport: [
+        "DELETE /repos/{owner}/{repo}/import",
+        {},
+        {
+          deprecated: "octokit.rest.migrations.cancelImport() is deprecated, see https://docs.github.com/rest/migrations/source-imports#cancel-an-import"
+        }
+      ],
+      deleteArchiveForAuthenticatedUser: [
+        "DELETE /user/migrations/{migration_id}/archive"
+      ],
+      deleteArchiveForOrg: [
+        "DELETE /orgs/{org}/migrations/{migration_id}/archive"
+      ],
+      downloadArchiveForOrg: [
+        "GET /orgs/{org}/migrations/{migration_id}/archive"
+      ],
+      getArchiveForAuthenticatedUser: [
+        "GET /user/migrations/{migration_id}/archive"
+      ],
+      getCommitAuthors: [
+        "GET /repos/{owner}/{repo}/import/authors",
+        {},
+        {
+          deprecated: "octokit.rest.migrations.getCommitAuthors() is deprecated, see https://docs.github.com/rest/migrations/source-imports#get-commit-authors"
+        }
+      ],
+      getImportStatus: [
+        "GET /repos/{owner}/{repo}/import",
+        {},
+        {
+          deprecated: "octokit.rest.migrations.getImportStatus() is deprecated, see https://docs.github.com/rest/migrations/source-imports#get-an-import-status"
+        }
+      ],
+      getLargeFiles: [
+        "GET /repos/{owner}/{repo}/import/large_files",
+        {},
+        {
+          deprecated: "octokit.rest.migrations.getLargeFiles() is deprecated, see https://docs.github.com/rest/migrations/source-imports#get-large-files"
+        }
+      ],
+      getStatusForAuthenticatedUser: ["GET /user/migrations/{migration_id}"],
+      getStatusForOrg: ["GET /orgs/{org}/migrations/{migration_id}"],
+      listForAuthenticatedUser: ["GET /user/migrations"],
+      listForOrg: ["GET /orgs/{org}/migrations"],
+      listReposForAuthenticatedUser: [
+        "GET /user/migrations/{migration_id}/repositories"
+      ],
+      listReposForOrg: ["GET /orgs/{org}/migrations/{migration_id}/repositories"],
+      listReposForUser: [
+        "GET /user/migrations/{migration_id}/repositories",
+        {},
+        { renamed: ["migrations", "listReposForAuthenticatedUser"] }
+      ],
+      mapCommitAuthor: [
+        "PATCH /repos/{owner}/{repo}/import/authors/{author_id}",
+        {},
+        {
+          deprecated: "octokit.rest.migrations.mapCommitAuthor() is deprecated, see https://docs.github.com/rest/migrations/source-imports#map-a-commit-author"
+        }
+      ],
+      setLfsPreference: [
+        "PATCH /repos/{owner}/{repo}/import/lfs",
+        {},
+        {
+          deprecated: "octokit.rest.migrations.setLfsPreference() is deprecated, see https://docs.github.com/rest/migrations/source-imports#update-git-lfs-preference"
+        }
+      ],
+      startForAuthenticatedUser: ["POST /user/migrations"],
+      startForOrg: ["POST /orgs/{org}/migrations"],
+      startImport: [
+        "PUT /repos/{owner}/{repo}/import",
+        {},
+        {
+          deprecated: "octokit.rest.migrations.startImport() is deprecated, see https://docs.github.com/rest/migrations/source-imports#start-an-import"
+        }
+      ],
+      unlockRepoForAuthenticatedUser: [
+        "DELETE /user/migrations/{migration_id}/repos/{repo_name}/lock"
+      ],
+      unlockRepoForOrg: [
+        "DELETE /orgs/{org}/migrations/{migration_id}/repos/{repo_name}/lock"
+      ],
+      updateImport: [
+        "PATCH /repos/{owner}/{repo}/import",
+        {},
+        {
+          deprecated: "octokit.rest.migrations.updateImport() is deprecated, see https://docs.github.com/rest/migrations/source-imports#update-an-import"
+        }
+      ]
+    },
+    oidc: {
+      getOidcCustomSubTemplateForOrg: [
+        "GET /orgs/{org}/actions/oidc/customization/sub"
+      ],
+      updateOidcCustomSubTemplateForOrg: [
+        "PUT /orgs/{org}/actions/oidc/customization/sub"
+      ]
+    },
+    orgs: {
+      addSecurityManagerTeam: [
+        "PUT /orgs/{org}/security-managers/teams/{team_slug}"
+      ],
+      assignTeamToOrgRole: [
+        "PUT /orgs/{org}/organization-roles/teams/{team_slug}/{role_id}"
+      ],
+      assignUserToOrgRole: [
+        "PUT /orgs/{org}/organization-roles/users/{username}/{role_id}"
+      ],
+      blockUser: ["PUT /orgs/{org}/blocks/{username}"],
+      cancelInvitation: ["DELETE /orgs/{org}/invitations/{invitation_id}"],
+      checkBlockedUser: ["GET /orgs/{org}/blocks/{username}"],
+      checkMembershipForUser: ["GET /orgs/{org}/members/{username}"],
+      checkPublicMembershipForUser: ["GET /orgs/{org}/public_members/{username}"],
+      convertMemberToOutsideCollaborator: [
+        "PUT /orgs/{org}/outside_collaborators/{username}"
+      ],
+      createCustomOrganizationRole: ["POST /orgs/{org}/organization-roles"],
+      createInvitation: ["POST /orgs/{org}/invitations"],
+      createOrUpdateCustomProperties: ["PATCH /orgs/{org}/properties/schema"],
+      createOrUpdateCustomPropertiesValuesForRepos: [
+        "PATCH /orgs/{org}/properties/values"
+      ],
+      createOrUpdateCustomProperty: [
+        "PUT /orgs/{org}/properties/schema/{custom_property_name}"
+      ],
+      createWebhook: ["POST /orgs/{org}/hooks"],
+      delete: ["DELETE /orgs/{org}"],
+      deleteCustomOrganizationRole: [
+        "DELETE /orgs/{org}/organization-roles/{role_id}"
+      ],
+      deleteWebhook: ["DELETE /orgs/{org}/hooks/{hook_id}"],
+      enableOrDisableSecurityProductOnAllOrgRepos: [
+        "POST /orgs/{org}/{security_product}/{enablement}"
+      ],
+      get: ["GET /orgs/{org}"],
+      getAllCustomProperties: ["GET /orgs/{org}/properties/schema"],
+      getCustomProperty: [
+        "GET /orgs/{org}/properties/schema/{custom_property_name}"
+      ],
+      getMembershipForAuthenticatedUser: ["GET /user/memberships/orgs/{org}"],
+      getMembershipForUser: ["GET /orgs/{org}/memberships/{username}"],
+      getOrgRole: ["GET /orgs/{org}/organization-roles/{role_id}"],
+      getWebhook: ["GET /orgs/{org}/hooks/{hook_id}"],
+      getWebhookConfigForOrg: ["GET /orgs/{org}/hooks/{hook_id}/config"],
+      getWebhookDelivery: [
+        "GET /orgs/{org}/hooks/{hook_id}/deliveries/{delivery_id}"
+      ],
+      list: ["GET /organizations"],
+      listAppInstallations: ["GET /orgs/{org}/installations"],
+      listBlockedUsers: ["GET /orgs/{org}/blocks"],
+      listCustomPropertiesValuesForRepos: ["GET /orgs/{org}/properties/values"],
+      listFailedInvitations: ["GET /orgs/{org}/failed_invitations"],
+      listForAuthenticatedUser: ["GET /user/orgs"],
+      listForUser: ["GET /users/{username}/orgs"],
+      listInvitationTeams: ["GET /orgs/{org}/invitations/{invitation_id}/teams"],
+      listMembers: ["GET /orgs/{org}/members"],
+      listMembershipsForAuthenticatedUser: ["GET /user/memberships/orgs"],
+      listOrgRoleTeams: ["GET /orgs/{org}/organization-roles/{role_id}/teams"],
+      listOrgRoleUsers: ["GET /orgs/{org}/organization-roles/{role_id}/users"],
+      listOrgRoles: ["GET /orgs/{org}/organization-roles"],
+      listOrganizationFineGrainedPermissions: [
+        "GET /orgs/{org}/organization-fine-grained-permissions"
+      ],
+      listOutsideCollaborators: ["GET /orgs/{org}/outside_collaborators"],
+      listPatGrantRepositories: [
+        "GET /orgs/{org}/personal-access-tokens/{pat_id}/repositories"
+      ],
+      listPatGrantRequestRepositories: [
+        "GET /orgs/{org}/personal-access-token-requests/{pat_request_id}/repositories"
+      ],
+      listPatGrantRequests: ["GET /orgs/{org}/personal-access-token-requests"],
+      listPatGrants: ["GET /orgs/{org}/personal-access-tokens"],
+      listPendingInvitations: ["GET /orgs/{org}/invitations"],
+      listPublicMembers: ["GET /orgs/{org}/public_members"],
+      listSecurityManagerTeams: ["GET /orgs/{org}/security-managers"],
+      listWebhookDeliveries: ["GET /orgs/{org}/hooks/{hook_id}/deliveries"],
+      listWebhooks: ["GET /orgs/{org}/hooks"],
+      patchCustomOrganizationRole: [
+        "PATCH /orgs/{org}/organization-roles/{role_id}"
+      ],
+      pingWebhook: ["POST /orgs/{org}/hooks/{hook_id}/pings"],
+      redeliverWebhookDelivery: [
+        "POST /orgs/{org}/hooks/{hook_id}/deliveries/{delivery_id}/attempts"
+      ],
+      removeCustomProperty: [
+        "DELETE /orgs/{org}/properties/schema/{custom_property_name}"
+      ],
+      removeMember: ["DELETE /orgs/{org}/members/{username}"],
+      removeMembershipForUser: ["DELETE /orgs/{org}/memberships/{username}"],
+      removeOutsideCollaborator: [
+        "DELETE /orgs/{org}/outside_collaborators/{username}"
+      ],
+      removePublicMembershipForAuthenticatedUser: [
+        "DELETE /orgs/{org}/public_members/{username}"
+      ],
+      removeSecurityManagerTeam: [
+        "DELETE /orgs/{org}/security-managers/teams/{team_slug}"
+      ],
+      reviewPatGrantRequest: [
+        "POST /orgs/{org}/personal-access-token-requests/{pat_request_id}"
+      ],
+      reviewPatGrantRequestsInBulk: [
+        "POST /orgs/{org}/personal-access-token-requests"
+      ],
+      revokeAllOrgRolesTeam: [
+        "DELETE /orgs/{org}/organization-roles/teams/{team_slug}"
+      ],
+      revokeAllOrgRolesUser: [
+        "DELETE /orgs/{org}/organization-roles/users/{username}"
+      ],
+      revokeOrgRoleTeam: [
+        "DELETE /orgs/{org}/organization-roles/teams/{team_slug}/{role_id}"
+      ],
+      revokeOrgRoleUser: [
+        "DELETE /orgs/{org}/organization-roles/users/{username}/{role_id}"
+      ],
+      setMembershipForUser: ["PUT /orgs/{org}/memberships/{username}"],
+      setPublicMembershipForAuthenticatedUser: [
+        "PUT /orgs/{org}/public_members/{username}"
+      ],
+      unblockUser: ["DELETE /orgs/{org}/blocks/{username}"],
+      update: ["PATCH /orgs/{org}"],
+      updateMembershipForAuthenticatedUser: [
+        "PATCH /user/memberships/orgs/{org}"
+      ],
+      updatePatAccess: ["POST /orgs/{org}/personal-access-tokens/{pat_id}"],
+      updatePatAccesses: ["POST /orgs/{org}/personal-access-tokens"],
+      updateWebhook: ["PATCH /orgs/{org}/hooks/{hook_id}"],
+      updateWebhookConfigForOrg: ["PATCH /orgs/{org}/hooks/{hook_id}/config"]
+    },
+    packages: {
+      deletePackageForAuthenticatedUser: [
+        "DELETE /user/packages/{package_type}/{package_name}"
+      ],
+      deletePackageForOrg: [
+        "DELETE /orgs/{org}/packages/{package_type}/{package_name}"
+      ],
+      deletePackageForUser: [
+        "DELETE /users/{username}/packages/{package_type}/{package_name}"
+      ],
+      deletePackageVersionForAuthenticatedUser: [
+        "DELETE /user/packages/{package_type}/{package_name}/versions/{package_version_id}"
+      ],
+      deletePackageVersionForOrg: [
+        "DELETE /orgs/{org}/packages/{package_type}/{package_name}/versions/{package_version_id}"
+      ],
+      deletePackageVersionForUser: [
+        "DELETE /users/{username}/packages/{package_type}/{package_name}/versions/{package_version_id}"
+      ],
+      getAllPackageVersionsForAPackageOwnedByAnOrg: [
+        "GET /orgs/{org}/packages/{package_type}/{package_name}/versions",
+        {},
+        { renamed: ["packages", "getAllPackageVersionsForPackageOwnedByOrg"] }
+      ],
+      getAllPackageVersionsForAPackageOwnedByTheAuthenticatedUser: [
+        "GET /user/packages/{package_type}/{package_name}/versions",
+        {},
+        {
+          renamed: [
+            "packages",
+            "getAllPackageVersionsForPackageOwnedByAuthenticatedUser"
+          ]
+        }
+      ],
+      getAllPackageVersionsForPackageOwnedByAuthenticatedUser: [
+        "GET /user/packages/{package_type}/{package_name}/versions"
+      ],
+      getAllPackageVersionsForPackageOwnedByOrg: [
+        "GET /orgs/{org}/packages/{package_type}/{package_name}/versions"
+      ],
+      getAllPackageVersionsForPackageOwnedByUser: [
+        "GET /users/{username}/packages/{package_type}/{package_name}/versions"
+      ],
+      getPackageForAuthenticatedUser: [
+        "GET /user/packages/{package_type}/{package_name}"
+      ],
+      getPackageForOrganization: [
+        "GET /orgs/{org}/packages/{package_type}/{package_name}"
+      ],
+      getPackageForUser: [
+        "GET /users/{username}/packages/{package_type}/{package_name}"
+      ],
+      getPackageVersionForAuthenticatedUser: [
+        "GET /user/packages/{package_type}/{package_name}/versions/{package_version_id}"
+      ],
+      getPackageVersionForOrganization: [
+        "GET /orgs/{org}/packages/{package_type}/{package_name}/versions/{package_version_id}"
+      ],
+      getPackageVersionForUser: [
+        "GET /users/{username}/packages/{package_type}/{package_name}/versions/{package_version_id}"
+      ],
+      listDockerMigrationConflictingPackagesForAuthenticatedUser: [
+        "GET /user/docker/conflicts"
+      ],
+      listDockerMigrationConflictingPackagesForOrganization: [
+        "GET /orgs/{org}/docker/conflicts"
+      ],
+      listDockerMigrationConflictingPackagesForUser: [
+        "GET /users/{username}/docker/conflicts"
+      ],
+      listPackagesForAuthenticatedUser: ["GET /user/packages"],
+      listPackagesForOrganization: ["GET /orgs/{org}/packages"],
+      listPackagesForUser: ["GET /users/{username}/packages"],
+      restorePackageForAuthenticatedUser: [
+        "POST /user/packages/{package_type}/{package_name}/restore{?token}"
+      ],
+      restorePackageForOrg: [
+        "POST /orgs/{org}/packages/{package_type}/{package_name}/restore{?token}"
+      ],
+      restorePackageForUser: [
+        "POST /users/{username}/packages/{package_type}/{package_name}/restore{?token}"
+      ],
+      restorePackageVersionForAuthenticatedUser: [
+        "POST /user/packages/{package_type}/{package_name}/versions/{package_version_id}/restore"
+      ],
+      restorePackageVersionForOrg: [
+        "POST /orgs/{org}/packages/{package_type}/{package_name}/versions/{package_version_id}/restore"
+      ],
+      restorePackageVersionForUser: [
+        "POST /users/{username}/packages/{package_type}/{package_name}/versions/{package_version_id}/restore"
+      ]
+    },
+    projects: {
+      addCollaborator: ["PUT /projects/{project_id}/collaborators/{username}"],
+      createCard: ["POST /projects/columns/{column_id}/cards"],
+      createColumn: ["POST /projects/{project_id}/columns"],
+      createForAuthenticatedUser: ["POST /user/projects"],
+      createForOrg: ["POST /orgs/{org}/projects"],
+      createForRepo: ["POST /repos/{owner}/{repo}/projects"],
+      delete: ["DELETE /projects/{project_id}"],
+      deleteCard: ["DELETE /projects/columns/cards/{card_id}"],
+      deleteColumn: ["DELETE /projects/columns/{column_id}"],
+      get: ["GET /projects/{project_id}"],
+      getCard: ["GET /projects/columns/cards/{card_id}"],
+      getColumn: ["GET /projects/columns/{column_id}"],
+      getPermissionForUser: [
+        "GET /projects/{project_id}/collaborators/{username}/permission"
+      ],
+      listCards: ["GET /projects/columns/{column_id}/cards"],
+      listCollaborators: ["GET /projects/{project_id}/collaborators"],
+      listColumns: ["GET /projects/{project_id}/columns"],
+      listForOrg: ["GET /orgs/{org}/projects"],
+      listForRepo: ["GET /repos/{owner}/{repo}/projects"],
+      listForUser: ["GET /users/{username}/projects"],
+      moveCard: ["POST /projects/columns/cards/{card_id}/moves"],
+      moveColumn: ["POST /projects/columns/{column_id}/moves"],
+      removeCollaborator: [
+        "DELETE /projects/{project_id}/collaborators/{username}"
+      ],
+      update: ["PATCH /projects/{project_id}"],
+      updateCard: ["PATCH /projects/columns/cards/{card_id}"],
+      updateColumn: ["PATCH /projects/columns/{column_id}"]
+    },
+    pulls: {
+      checkIfMerged: ["GET /repos/{owner}/{repo}/pulls/{pull_number}/merge"],
+      create: ["POST /repos/{owner}/{repo}/pulls"],
+      createReplyForReviewComment: [
+        "POST /repos/{owner}/{repo}/pulls/{pull_number}/comments/{comment_id}/replies"
+      ],
+      createReview: ["POST /repos/{owner}/{repo}/pulls/{pull_number}/reviews"],
+      createReviewComment: [
+        "POST /repos/{owner}/{repo}/pulls/{pull_number}/comments"
+      ],
+      deletePendingReview: [
+        "DELETE /repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}"
+      ],
+      deleteReviewComment: [
+        "DELETE /repos/{owner}/{repo}/pulls/comments/{comment_id}"
+      ],
+      dismissReview: [
+        "PUT /repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}/dismissals"
+      ],
+      get: ["GET /repos/{owner}/{repo}/pulls/{pull_number}"],
+      getReview: [
+        "GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}"
+      ],
+      getReviewComment: ["GET /repos/{owner}/{repo}/pulls/comments/{comment_id}"],
+      list: ["GET /repos/{owner}/{repo}/pulls"],
+      listCommentsForReview: [
+        "GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}/comments"
+      ],
+      listCommits: ["GET /repos/{owner}/{repo}/pulls/{pull_number}/commits"],
+      listFiles: ["GET /repos/{owner}/{repo}/pulls/{pull_number}/files"],
+      listRequestedReviewers: [
+        "GET /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers"
+      ],
+      listReviewComments: [
+        "GET /repos/{owner}/{repo}/pulls/{pull_number}/comments"
+      ],
+      listReviewCommentsForRepo: ["GET /repos/{owner}/{repo}/pulls/comments"],
+      listReviews: ["GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews"],
+      merge: ["PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge"],
+      removeRequestedReviewers: [
+        "DELETE /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers"
+      ],
+      requestReviewers: [
+        "POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers"
+      ],
+      submitReview: [
+        "POST /repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}/events"
+      ],
+      update: ["PATCH /repos/{owner}/{repo}/pulls/{pull_number}"],
+      updateBranch: [
+        "PUT /repos/{owner}/{repo}/pulls/{pull_number}/update-branch"
+      ],
+      updateReview: [
+        "PUT /repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}"
+      ],
+      updateReviewComment: [
+        "PATCH /repos/{owner}/{repo}/pulls/comments/{comment_id}"
+      ]
+    },
+    rateLimit: { get: ["GET /rate_limit"] },
+    reactions: {
+      createForCommitComment: [
+        "POST /repos/{owner}/{repo}/comments/{comment_id}/reactions"
+      ],
+      createForIssue: [
+        "POST /repos/{owner}/{repo}/issues/{issue_number}/reactions"
+      ],
+      createForIssueComment: [
+        "POST /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions"
+      ],
+      createForPullRequestReviewComment: [
+        "POST /repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions"
+      ],
+      createForRelease: [
+        "POST /repos/{owner}/{repo}/releases/{release_id}/reactions"
+      ],
+      createForTeamDiscussionCommentInOrg: [
+        "POST /orgs/{org}/teams/{team_slug}/discussions/{discussion_number}/comments/{comment_number}/reactions"
+      ],
+      createForTeamDiscussionInOrg: [
+        "POST /orgs/{org}/teams/{team_slug}/discussions/{discussion_number}/reactions"
+      ],
+      deleteForCommitComment: [
+        "DELETE /repos/{owner}/{repo}/comments/{comment_id}/reactions/{reaction_id}"
+      ],
+      deleteForIssue: [
+        "DELETE /repos/{owner}/{repo}/issues/{issue_number}/reactions/{reaction_id}"
+      ],
+      deleteForIssueComment: [
+        "DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions/{reaction_id}"
+      ],
+      deleteForPullRequestComment: [
+        "DELETE /repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions/{reaction_id}"
+      ],
+      deleteForRelease: [
+        "DELETE /repos/{owner}/{repo}/releases/{release_id}/reactions/{reaction_id}"
+      ],
+      deleteForTeamDiscussion: [
+        "DELETE /orgs/{org}/teams/{team_slug}/discussions/{discussion_number}/reactions/{reaction_id}"
+      ],
+      deleteForTeamDiscussionComment: [
+        "DELETE /orgs/{org}/teams/{team_slug}/discussions/{discussion_number}/comments/{comment_number}/reactions/{reaction_id}"
+      ],
+      listForCommitComment: [
+        "GET /repos/{owner}/{repo}/comments/{comment_id}/reactions"
+      ],
+      listForIssue: ["GET /repos/{owner}/{repo}/issues/{issue_number}/reactions"],
+      listForIssueComment: [
+        "GET /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions"
+      ],
+      listForPullRequestReviewComment: [
+        "GET /repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions"
+      ],
+      listForRelease: [
+        "GET /repos/{owner}/{repo}/releases/{release_id}/reactions"
+      ],
+      listForTeamDiscussionCommentInOrg: [
+        "GET /orgs/{org}/teams/{team_slug}/discussions/{discussion_number}/comments/{comment_number}/reactions"
+      ],
+      listForTeamDiscussionInOrg: [
+        "GET /orgs/{org}/teams/{team_slug}/discussions/{discussion_number}/reactions"
+      ]
+    },
+    repos: {
+      acceptInvitation: [
+        "PATCH /user/repository_invitations/{invitation_id}",
+        {},
+        { renamed: ["repos", "acceptInvitationForAuthenticatedUser"] }
+      ],
+      acceptInvitationForAuthenticatedUser: [
+        "PATCH /user/repository_invitations/{invitation_id}"
+      ],
+      addAppAccessRestrictions: [
+        "POST /repos/{owner}/{repo}/branches/{branch}/protection/restrictions/apps",
+        {},
+        { mapToData: "apps" }
+      ],
+      addCollaborator: ["PUT /repos/{owner}/{repo}/collaborators/{username}"],
+      addStatusCheckContexts: [
+        "POST /repos/{owner}/{repo}/branches/{branch}/protection/required_status_checks/contexts",
+        {},
+        { mapToData: "contexts" }
+      ],
+      addTeamAccessRestrictions: [
+        "POST /repos/{owner}/{repo}/branches/{branch}/protection/restrictions/teams",
+        {},
+        { mapToData: "teams" }
+      ],
+      addUserAccessRestrictions: [
+        "POST /repos/{owner}/{repo}/branches/{branch}/protection/restrictions/users",
+        {},
+        { mapToData: "users" }
+      ],
+      cancelPagesDeployment: [
+        "POST /repos/{owner}/{repo}/pages/deployments/{pages_deployment_id}/cancel"
+      ],
+      checkAutomatedSecurityFixes: [
+        "GET /repos/{owner}/{repo}/automated-security-fixes"
+      ],
+      checkCollaborator: ["GET /repos/{owner}/{repo}/collaborators/{username}"],
+      checkVulnerabilityAlerts: [
+        "GET /repos/{owner}/{repo}/vulnerability-alerts"
+      ],
+      codeownersErrors: ["GET /repos/{owner}/{repo}/codeowners/errors"],
+      compareCommits: ["GET /repos/{owner}/{repo}/compare/{base}...{head}"],
+      compareCommitsWithBasehead: [
+        "GET /repos/{owner}/{repo}/compare/{basehead}"
+      ],
+      createAutolink: ["POST /repos/{owner}/{repo}/autolinks"],
+      createCommitComment: [
+        "POST /repos/{owner}/{repo}/commits/{commit_sha}/comments"
+      ],
+      createCommitSignatureProtection: [
+        "POST /repos/{owner}/{repo}/branches/{branch}/protection/required_signatures"
+      ],
+      createCommitStatus: ["POST /repos/{owner}/{repo}/statuses/{sha}"],
+      createDeployKey: ["POST /repos/{owner}/{repo}/keys"],
+      createDeployment: ["POST /repos/{owner}/{repo}/deployments"],
+      createDeploymentBranchPolicy: [
+        "POST /repos/{owner}/{repo}/environments/{environment_name}/deployment-branch-policies"
+      ],
+      createDeploymentProtectionRule: [
+        "POST /repos/{owner}/{repo}/environments/{environment_name}/deployment_protection_rules"
+      ],
+      createDeploymentStatus: [
+        "POST /repos/{owner}/{repo}/deployments/{deployment_id}/statuses"
+      ],
+      createDispatchEvent: ["POST /repos/{owner}/{repo}/dispatches"],
+      createForAuthenticatedUser: ["POST /user/repos"],
+      createFork: ["POST /repos/{owner}/{repo}/forks"],
+      createInOrg: ["POST /orgs/{org}/repos"],
+      createOrUpdateCustomPropertiesValues: [
+        "PATCH /repos/{owner}/{repo}/properties/values"
+      ],
+      createOrUpdateEnvironment: [
+        "PUT /repos/{owner}/{repo}/environments/{environment_name}"
+      ],
+      createOrUpdateFileContents: ["PUT /repos/{owner}/{repo}/contents/{path}"],
+      createOrgRuleset: ["POST /orgs/{org}/rulesets"],
+      createPagesDeployment: ["POST /repos/{owner}/{repo}/pages/deployments"],
+      createPagesSite: ["POST /repos/{owner}/{repo}/pages"],
+      createRelease: ["POST /repos/{owner}/{repo}/releases"],
+      createRepoRuleset: ["POST /repos/{owner}/{repo}/rulesets"],
+      createTagProtection: ["POST /repos/{owner}/{repo}/tags/protection"],
+      createUsingTemplate: [
+        "POST /repos/{template_owner}/{template_repo}/generate"
+      ],
+      createWebhook: ["POST /repos/{owner}/{repo}/hooks"],
+      declineInvitation: [
+        "DELETE /user/repository_invitations/{invitation_id}",
+        {},
+        { renamed: ["repos", "declineInvitationForAuthenticatedUser"] }
+      ],
+      declineInvitationForAuthenticatedUser: [
+        "DELETE /user/repository_invitations/{invitation_id}"
+      ],
+      delete: ["DELETE /repos/{owner}/{repo}"],
+      deleteAccessRestrictions: [
+        "DELETE /repos/{owner}/{repo}/branches/{branch}/protection/restrictions"
+      ],
+      deleteAdminBranchProtection: [
+        "DELETE /repos/{owner}/{repo}/branches/{branch}/protection/enforce_admins"
+      ],
+      deleteAnEnvironment: [
+        "DELETE /repos/{owner}/{repo}/environments/{environment_name}"
+      ],
+      deleteAutolink: ["DELETE /repos/{owner}/{repo}/autolinks/{autolink_id}"],
+      deleteBranchProtection: [
+        "DELETE /repos/{owner}/{repo}/branches/{branch}/protection"
+      ],
+      deleteCommitComment: ["DELETE /repos/{owner}/{repo}/comments/{comment_id}"],
+      deleteCommitSignatureProtection: [
+        "DELETE /repos/{owner}/{repo}/branches/{branch}/protection/required_signatures"
+      ],
+      deleteDeployKey: ["DELETE /repos/{owner}/{repo}/keys/{key_id}"],
+      deleteDeployment: [
+        "DELETE /repos/{owner}/{repo}/deployments/{deployment_id}"
+      ],
+      deleteDeploymentBranchPolicy: [
+        "DELETE /repos/{owner}/{repo}/environments/{environment_name}/deployment-branch-policies/{branch_policy_id}"
+      ],
+      deleteFile: ["DELETE /repos/{owner}/{repo}/contents/{path}"],
+      deleteInvitation: [
+        "DELETE /repos/{owner}/{repo}/invitations/{invitation_id}"
+      ],
+      deleteOrgRuleset: ["DELETE /orgs/{org}/rulesets/{ruleset_id}"],
+      deletePagesSite: ["DELETE /repos/{owner}/{repo}/pages"],
+      deletePullRequestReviewProtection: [
+        "DELETE /repos/{owner}/{repo}/branches/{branch}/protection/required_pull_request_reviews"
+      ],
+      deleteRelease: ["DELETE /repos/{owner}/{repo}/releases/{release_id}"],
+      deleteReleaseAsset: [
+        "DELETE /repos/{owner}/{repo}/releases/assets/{asset_id}"
+      ],
+      deleteRepoRuleset: ["DELETE /repos/{owner}/{repo}/rulesets/{ruleset_id}"],
+      deleteTagProtection: [
+        "DELETE /repos/{owner}/{repo}/tags/protection/{tag_protection_id}"
+      ],
+      deleteWebhook: ["DELETE /repos/{owner}/{repo}/hooks/{hook_id}"],
+      disableAutomatedSecurityFixes: [
+        "DELETE /repos/{owner}/{repo}/automated-security-fixes"
+      ],
+      disableDeploymentProtectionRule: [
+        "DELETE /repos/{owner}/{repo}/environments/{environment_name}/deployment_protection_rules/{protection_rule_id}"
+      ],
+      disablePrivateVulnerabilityReporting: [
+        "DELETE /repos/{owner}/{repo}/private-vulnerability-reporting"
+      ],
+      disableVulnerabilityAlerts: [
+        "DELETE /repos/{owner}/{repo}/vulnerability-alerts"
+      ],
+      downloadArchive: [
+        "GET /repos/{owner}/{repo}/zipball/{ref}",
+        {},
+        { renamed: ["repos", "downloadZipballArchive"] }
+      ],
+      downloadTarballArchive: ["GET /repos/{owner}/{repo}/tarball/{ref}"],
+      downloadZipballArchive: ["GET /repos/{owner}/{repo}/zipball/{ref}"],
+      enableAutomatedSecurityFixes: [
+        "PUT /repos/{owner}/{repo}/automated-security-fixes"
+      ],
+      enablePrivateVulnerabilityReporting: [
+        "PUT /repos/{owner}/{repo}/private-vulnerability-reporting"
+      ],
+      enableVulnerabilityAlerts: [
+        "PUT /repos/{owner}/{repo}/vulnerability-alerts"
+      ],
+      generateReleaseNotes: [
+        "POST /repos/{owner}/{repo}/releases/generate-notes"
+      ],
+      get: ["GET /repos/{owner}/{repo}"],
+      getAccessRestrictions: [
+        "GET /repos/{owner}/{repo}/branches/{branch}/protection/restrictions"
+      ],
+      getAdminBranchProtection: [
+        "GET /repos/{owner}/{repo}/branches/{branch}/protection/enforce_admins"
+      ],
+      getAllDeploymentProtectionRules: [
+        "GET /repos/{owner}/{repo}/environments/{environment_name}/deployment_protection_rules"
+      ],
+      getAllEnvironments: ["GET /repos/{owner}/{repo}/environments"],
+      getAllStatusCheckContexts: [
+        "GET /repos/{owner}/{repo}/branches/{branch}/protection/required_status_checks/contexts"
+      ],
+      getAllTopics: ["GET /repos/{owner}/{repo}/topics"],
+      getAppsWithAccessToProtectedBranch: [
+        "GET /repos/{owner}/{repo}/branches/{branch}/protection/restrictions/apps"
+      ],
+      getAutolink: ["GET /repos/{owner}/{repo}/autolinks/{autolink_id}"],
+      getBranch: ["GET /repos/{owner}/{repo}/branches/{branch}"],
+      getBranchProtection: [
+        "GET /repos/{owner}/{repo}/branches/{branch}/protection"
+      ],
+      getBranchRules: ["GET /repos/{owner}/{repo}/rules/branches/{branch}"],
+      getClones: ["GET /repos/{owner}/{repo}/traffic/clones"],
+      getCodeFrequencyStats: ["GET /repos/{owner}/{repo}/stats/code_frequency"],
+      getCollaboratorPermissionLevel: [
+        "GET /repos/{owner}/{repo}/collaborators/{username}/permission"
+      ],
+      getCombinedStatusForRef: ["GET /repos/{owner}/{repo}/commits/{ref}/status"],
+      getCommit: ["GET /repos/{owner}/{repo}/commits/{ref}"],
+      getCommitActivityStats: ["GET /repos/{owner}/{repo}/stats/commit_activity"],
+      getCommitComment: ["GET /repos/{owner}/{repo}/comments/{comment_id}"],
+      getCommitSignatureProtection: [
+        "GET /repos/{owner}/{repo}/branches/{branch}/protection/required_signatures"
+      ],
+      getCommunityProfileMetrics: ["GET /repos/{owner}/{repo}/community/profile"],
+      getContent: ["GET /repos/{owner}/{repo}/contents/{path}"],
+      getContributorsStats: ["GET /repos/{owner}/{repo}/stats/contributors"],
+      getCustomDeploymentProtectionRule: [
+        "GET /repos/{owner}/{repo}/environments/{environment_name}/deployment_protection_rules/{protection_rule_id}"
+      ],
+      getCustomPropertiesValues: ["GET /repos/{owner}/{repo}/properties/values"],
+      getDeployKey: ["GET /repos/{owner}/{repo}/keys/{key_id}"],
+      getDeployment: ["GET /repos/{owner}/{repo}/deployments/{deployment_id}"],
+      getDeploymentBranchPolicy: [
+        "GET /repos/{owner}/{repo}/environments/{environment_name}/deployment-branch-policies/{branch_policy_id}"
+      ],
+      getDeploymentStatus: [
+        "GET /repos/{owner}/{repo}/deployments/{deployment_id}/statuses/{status_id}"
+      ],
+      getEnvironment: [
+        "GET /repos/{owner}/{repo}/environments/{environment_name}"
+      ],
+      getLatestPagesBuild: ["GET /repos/{owner}/{repo}/pages/builds/latest"],
+      getLatestRelease: ["GET /repos/{owner}/{repo}/releases/latest"],
+      getOrgRuleSuite: ["GET /orgs/{org}/rulesets/rule-suites/{rule_suite_id}"],
+      getOrgRuleSuites: ["GET /orgs/{org}/rulesets/rule-suites"],
+      getOrgRuleset: ["GET /orgs/{org}/rulesets/{ruleset_id}"],
+      getOrgRulesets: ["GET /orgs/{org}/rulesets"],
+      getPages: ["GET /repos/{owner}/{repo}/pages"],
+      getPagesBuild: ["GET /repos/{owner}/{repo}/pages/builds/{build_id}"],
+      getPagesDeployment: [
+        "GET /repos/{owner}/{repo}/pages/deployments/{pages_deployment_id}"
+      ],
+      getPagesHealthCheck: ["GET /repos/{owner}/{repo}/pages/health"],
+      getParticipationStats: ["GET /repos/{owner}/{repo}/stats/participation"],
+      getPullRequestReviewProtection: [
+        "GET /repos/{owner}/{repo}/branches/{branch}/protection/required_pull_request_reviews"
+      ],
+      getPunchCardStats: ["GET /repos/{owner}/{repo}/stats/punch_card"],
+      getReadme: ["GET /repos/{owner}/{repo}/readme"],
+      getReadmeInDirectory: ["GET /repos/{owner}/{repo}/readme/{dir}"],
+      getRelease: ["GET /repos/{owner}/{repo}/releases/{release_id}"],
+      getReleaseAsset: ["GET /repos/{owner}/{repo}/releases/assets/{asset_id}"],
+      getReleaseByTag: ["GET /repos/{owner}/{repo}/releases/tags/{tag}"],
+      getRepoRuleSuite: [
+        "GET /repos/{owner}/{repo}/rulesets/rule-suites/{rule_suite_id}"
+      ],
+      getRepoRuleSuites: ["GET /repos/{owner}/{repo}/rulesets/rule-suites"],
+      getRepoRuleset: ["GET /repos/{owner}/{repo}/rulesets/{ruleset_id}"],
+      getRepoRulesets: ["GET /repos/{owner}/{repo}/rulesets"],
+      getStatusChecksProtection: [
+        "GET /repos/{owner}/{repo}/branches/{branch}/protection/required_status_checks"
+      ],
+      getTeamsWithAccessToProtectedBranch: [
+        "GET /repos/{owner}/{repo}/branches/{branch}/protection/restrictions/teams"
+      ],
+      getTopPaths: ["GET /repos/{owner}/{repo}/traffic/popular/paths"],
+      getTopReferrers: ["GET /repos/{owner}/{repo}/traffic/popular/referrers"],
+      getUsersWithAccessToProtectedBranch: [
+        "GET /repos/{owner}/{repo}/branches/{branch}/protection/restrictions/users"
+      ],
+      getViews: ["GET /repos/{owner}/{repo}/traffic/views"],
+      getWebhook: ["GET /repos/{owner}/{repo}/hooks/{hook_id}"],
+      getWebhookConfigForRepo: [
+        "GET /repos/{owner}/{repo}/hooks/{hook_id}/config"
+      ],
+      getWebhookDelivery: [
+        "GET /repos/{owner}/{repo}/hooks/{hook_id}/deliveries/{delivery_id}"
+      ],
+      listActivities: ["GET /repos/{owner}/{repo}/activity"],
+      listAutolinks: ["GET /repos/{owner}/{repo}/autolinks"],
+      listBranches: ["GET /repos/{owner}/{repo}/branches"],
+      listBranchesForHeadCommit: [
+        "GET /repos/{owner}/{repo}/commits/{commit_sha}/branches-where-head"
+      ],
+      listCollaborators: ["GET /repos/{owner}/{repo}/collaborators"],
+      listCommentsForCommit: [
+        "GET /repos/{owner}/{repo}/commits/{commit_sha}/comments"
+      ],
+      listCommitCommentsForRepo: ["GET /repos/{owner}/{repo}/comments"],
+      listCommitStatusesForRef: [
+        "GET /repos/{owner}/{repo}/commits/{ref}/statuses"
+      ],
+      listCommits: ["GET /repos/{owner}/{repo}/commits"],
+      listContributors: ["GET /repos/{owner}/{repo}/contributors"],
+      listCustomDeploymentRuleIntegrations: [
+        "GET /repos/{owner}/{repo}/environments/{environment_name}/deployment_protection_rules/apps"
+      ],
+      listDeployKeys: ["GET /repos/{owner}/{repo}/keys"],
+      listDeploymentBranchPolicies: [
+        "GET /repos/{owner}/{repo}/environments/{environment_name}/deployment-branch-policies"
+      ],
+      listDeploymentStatuses: [
+        "GET /repos/{owner}/{repo}/deployments/{deployment_id}/statuses"
+      ],
+      listDeployments: ["GET /repos/{owner}/{repo}/deployments"],
+      listForAuthenticatedUser: ["GET /user/repos"],
+      listForOrg: ["GET /orgs/{org}/repos"],
+      listForUser: ["GET /users/{username}/repos"],
+      listForks: ["GET /repos/{owner}/{repo}/forks"],
+      listInvitations: ["GET /repos/{owner}/{repo}/invitations"],
+      listInvitationsForAuthenticatedUser: ["GET /user/repository_invitations"],
+      listLanguages: ["GET /repos/{owner}/{repo}/languages"],
+      listPagesBuilds: ["GET /repos/{owner}/{repo}/pages/builds"],
+      listPublic: ["GET /repositories"],
+      listPullRequestsAssociatedWithCommit: [
+        "GET /repos/{owner}/{repo}/commits/{commit_sha}/pulls"
+      ],
+      listReleaseAssets: [
+        "GET /repos/{owner}/{repo}/releases/{release_id}/assets"
+      ],
+      listReleases: ["GET /repos/{owner}/{repo}/releases"],
+      listTagProtection: ["GET /repos/{owner}/{repo}/tags/protection"],
+      listTags: ["GET /repos/{owner}/{repo}/tags"],
+      listTeams: ["GET /repos/{owner}/{repo}/teams"],
+      listWebhookDeliveries: [
+        "GET /repos/{owner}/{repo}/hooks/{hook_id}/deliveries"
+      ],
+      listWebhooks: ["GET /repos/{owner}/{repo}/hooks"],
+      merge: ["POST /repos/{owner}/{repo}/merges"],
+      mergeUpstream: ["POST /repos/{owner}/{repo}/merge-upstream"],
+      pingWebhook: ["POST /repos/{owner}/{repo}/hooks/{hook_id}/pings"],
+      redeliverWebhookDelivery: [
+        "POST /repos/{owner}/{repo}/hooks/{hook_id}/deliveries/{delivery_id}/attempts"
+      ],
+      removeAppAccessRestrictions: [
+        "DELETE /repos/{owner}/{repo}/branches/{branch}/protection/restrictions/apps",
+        {},
+        { mapToData: "apps" }
+      ],
+      removeCollaborator: [
+        "DELETE /repos/{owner}/{repo}/collaborators/{username}"
+      ],
+      removeStatusCheckContexts: [
+        "DELETE /repos/{owner}/{repo}/branches/{branch}/protection/required_status_checks/contexts",
+        {},
+        { mapToData: "contexts" }
+      ],
+      removeStatusCheckProtection: [
+        "DELETE /repos/{owner}/{repo}/branches/{branch}/protection/required_status_checks"
+      ],
+      removeTeamAccessRestrictions: [
+        "DELETE /repos/{owner}/{repo}/branches/{branch}/protection/restrictions/teams",
+        {},
+        { mapToData: "teams" }
+      ],
+      removeUserAccessRestrictions: [
+        "DELETE /repos/{owner}/{repo}/branches/{branch}/protection/restrictions/users",
+        {},
+        { mapToData: "users" }
+      ],
+      renameBranch: ["POST /repos/{owner}/{repo}/branches/{branch}/rename"],
+      replaceAllTopics: ["PUT /repos/{owner}/{repo}/topics"],
+      requestPagesBuild: ["POST /repos/{owner}/{repo}/pages/builds"],
+      setAdminBranchProtection: [
+        "POST /repos/{owner}/{repo}/branches/{branch}/protection/enforce_admins"
+      ],
+      setAppAccessRestrictions: [
+        "PUT /repos/{owner}/{repo}/branches/{branch}/protection/restrictions/apps",
+        {},
+        { mapToData: "apps" }
+      ],
+      setStatusCheckContexts: [
+        "PUT /repos/{owner}/{repo}/branches/{branch}/protection/required_status_checks/contexts",
+        {},
+        { mapToData: "contexts" }
+      ],
+      setTeamAccessRestrictions: [
+        "PUT /repos/{owner}/{repo}/branches/{branch}/protection/restrictions/teams",
+        {},
+        { mapToData: "teams" }
+      ],
+      setUserAccessRestrictions: [
+        "PUT /repos/{owner}/{repo}/branches/{branch}/protection/restrictions/users",
+        {},
+        { mapToData: "users" }
+      ],
+      testPushWebhook: ["POST /repos/{owner}/{repo}/hooks/{hook_id}/tests"],
+      transfer: ["POST /repos/{owner}/{repo}/transfer"],
+      update: ["PATCH /repos/{owner}/{repo}"],
+      updateBranchProtection: [
+        "PUT /repos/{owner}/{repo}/branches/{branch}/protection"
+      ],
+      updateCommitComment: ["PATCH /repos/{owner}/{repo}/comments/{comment_id}"],
+      updateDeploymentBranchPolicy: [
+        "PUT /repos/{owner}/{repo}/environments/{environment_name}/deployment-branch-policies/{branch_policy_id}"
+      ],
+      updateInformationAboutPagesSite: ["PUT /repos/{owner}/{repo}/pages"],
+      updateInvitation: [
+        "PATCH /repos/{owner}/{repo}/invitations/{invitation_id}"
+      ],
+      updateOrgRuleset: ["PUT /orgs/{org}/rulesets/{ruleset_id}"],
+      updatePullRequestReviewProtection: [
+        "PATCH /repos/{owner}/{repo}/branches/{branch}/protection/required_pull_request_reviews"
+      ],
+      updateRelease: ["PATCH /repos/{owner}/{repo}/releases/{release_id}"],
+      updateReleaseAsset: [
+        "PATCH /repos/{owner}/{repo}/releases/assets/{asset_id}"
+      ],
+      updateRepoRuleset: ["PUT /repos/{owner}/{repo}/rulesets/{ruleset_id}"],
+      updateStatusCheckPotection: [
+        "PATCH /repos/{owner}/{repo}/branches/{branch}/protection/required_status_checks",
+        {},
+        { renamed: ["repos", "updateStatusCheckProtection"] }
+      ],
+      updateStatusCheckProtection: [
+        "PATCH /repos/{owner}/{repo}/branches/{branch}/protection/required_status_checks"
+      ],
+      updateWebhook: ["PATCH /repos/{owner}/{repo}/hooks/{hook_id}"],
+      updateWebhookConfigForRepo: [
+        "PATCH /repos/{owner}/{repo}/hooks/{hook_id}/config"
+      ],
+      uploadReleaseAsset: [
+        "POST /repos/{owner}/{repo}/releases/{release_id}/assets{?name,label}",
+        { baseUrl: "https://uploads.github.com" }
+      ]
+    },
+    search: {
+      code: ["GET /search/code"],
+      commits: ["GET /search/commits"],
+      issuesAndPullRequests: ["GET /search/issues"],
+      labels: ["GET /search/labels"],
+      repos: ["GET /search/repositories"],
+      topics: ["GET /search/topics"],
+      users: ["GET /search/users"]
+    },
+    secretScanning: {
+      getAlert: [
+        "GET /repos/{owner}/{repo}/secret-scanning/alerts/{alert_number}"
+      ],
+      listAlertsForEnterprise: [
+        "GET /enterprises/{enterprise}/secret-scanning/alerts"
+      ],
+      listAlertsForOrg: ["GET /orgs/{org}/secret-scanning/alerts"],
+      listAlertsForRepo: ["GET /repos/{owner}/{repo}/secret-scanning/alerts"],
+      listLocationsForAlert: [
+        "GET /repos/{owner}/{repo}/secret-scanning/alerts/{alert_number}/locations"
+      ],
+      updateAlert: [
+        "PATCH /repos/{owner}/{repo}/secret-scanning/alerts/{alert_number}"
+      ]
+    },
+    securityAdvisories: {
+      createFork: [
+        "POST /repos/{owner}/{repo}/security-advisories/{ghsa_id}/forks"
+      ],
+      createPrivateVulnerabilityReport: [
+        "POST /repos/{owner}/{repo}/security-advisories/reports"
+      ],
+      createRepositoryAdvisory: [
+        "POST /repos/{owner}/{repo}/security-advisories"
+      ],
+      createRepositoryAdvisoryCveRequest: [
+        "POST /repos/{owner}/{repo}/security-advisories/{ghsa_id}/cve"
+      ],
+      getGlobalAdvisory: ["GET /advisories/{ghsa_id}"],
+      getRepositoryAdvisory: [
+        "GET /repos/{owner}/{repo}/security-advisories/{ghsa_id}"
+      ],
+      listGlobalAdvisories: ["GET /advisories"],
+      listOrgRepositoryAdvisories: ["GET /orgs/{org}/security-advisories"],
+      listRepositoryAdvisories: ["GET /repos/{owner}/{repo}/security-advisories"],
+      updateRepositoryAdvisory: [
+        "PATCH /repos/{owner}/{repo}/security-advisories/{ghsa_id}"
+      ]
+    },
+    teams: {
+      addOrUpdateMembershipForUserInOrg: [
+        "PUT /orgs/{org}/teams/{team_slug}/memberships/{username}"
+      ],
+      addOrUpdateProjectPermissionsInOrg: [
+        "PUT /orgs/{org}/teams/{team_slug}/projects/{project_id}"
+      ],
+      addOrUpdateRepoPermissionsInOrg: [
+        "PUT /orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}"
+      ],
+      checkPermissionsForProjectInOrg: [
+        "GET /orgs/{org}/teams/{team_slug}/projects/{project_id}"
+      ],
+      checkPermissionsForRepoInOrg: [
+        "GET /orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}"
+      ],
+      create: ["POST /orgs/{org}/teams"],
+      createDiscussionCommentInOrg: [
+        "POST /orgs/{org}/teams/{team_slug}/discussions/{discussion_number}/comments"
+      ],
+      createDiscussionInOrg: ["POST /orgs/{org}/teams/{team_slug}/discussions"],
+      deleteDiscussionCommentInOrg: [
+        "DELETE /orgs/{org}/teams/{team_slug}/discussions/{discussion_number}/comments/{comment_number}"
+      ],
+      deleteDiscussionInOrg: [
+        "DELETE /orgs/{org}/teams/{team_slug}/discussions/{discussion_number}"
+      ],
+      deleteInOrg: ["DELETE /orgs/{org}/teams/{team_slug}"],
+      getByName: ["GET /orgs/{org}/teams/{team_slug}"],
+      getDiscussionCommentInOrg: [
+        "GET /orgs/{org}/teams/{team_slug}/discussions/{discussion_number}/comments/{comment_number}"
+      ],
+      getDiscussionInOrg: [
+        "GET /orgs/{org}/teams/{team_slug}/discussions/{discussion_number}"
+      ],
+      getMembershipForUserInOrg: [
+        "GET /orgs/{org}/teams/{team_slug}/memberships/{username}"
+      ],
+      list: ["GET /orgs/{org}/teams"],
+      listChildInOrg: ["GET /orgs/{org}/teams/{team_slug}/teams"],
+      listDiscussionCommentsInOrg: [
+        "GET /orgs/{org}/teams/{team_slug}/discussions/{discussion_number}/comments"
+      ],
+      listDiscussionsInOrg: ["GET /orgs/{org}/teams/{team_slug}/discussions"],
+      listForAuthenticatedUser: ["GET /user/teams"],
+      listMembersInOrg: ["GET /orgs/{org}/teams/{team_slug}/members"],
+      listPendingInvitationsInOrg: [
+        "GET /orgs/{org}/teams/{team_slug}/invitations"
+      ],
+      listProjectsInOrg: ["GET /orgs/{org}/teams/{team_slug}/projects"],
+      listReposInOrg: ["GET /orgs/{org}/teams/{team_slug}/repos"],
+      removeMembershipForUserInOrg: [
+        "DELETE /orgs/{org}/teams/{team_slug}/memberships/{username}"
+      ],
+      removeProjectInOrg: [
+        "DELETE /orgs/{org}/teams/{team_slug}/projects/{project_id}"
+      ],
+      removeRepoInOrg: [
+        "DELETE /orgs/{org}/teams/{team_slug}/repos/{owner}/{repo}"
+      ],
+      updateDiscussionCommentInOrg: [
+        "PATCH /orgs/{org}/teams/{team_slug}/discussions/{discussion_number}/comments/{comment_number}"
+      ],
+      updateDiscussionInOrg: [
+        "PATCH /orgs/{org}/teams/{team_slug}/discussions/{discussion_number}"
+      ],
+      updateInOrg: ["PATCH /orgs/{org}/teams/{team_slug}"]
+    },
+    users: {
+      addEmailForAuthenticated: [
+        "POST /user/emails",
+        {},
+        { renamed: ["users", "addEmailForAuthenticatedUser"] }
+      ],
+      addEmailForAuthenticatedUser: ["POST /user/emails"],
+      addSocialAccountForAuthenticatedUser: ["POST /user/social_accounts"],
+      block: ["PUT /user/blocks/{username}"],
+      checkBlocked: ["GET /user/blocks/{username}"],
+      checkFollowingForUser: ["GET /users/{username}/following/{target_user}"],
+      checkPersonIsFollowedByAuthenticated: ["GET /user/following/{username}"],
+      createGpgKeyForAuthenticated: [
+        "POST /user/gpg_keys",
+        {},
+        { renamed: ["users", "createGpgKeyForAuthenticatedUser"] }
+      ],
+      createGpgKeyForAuthenticatedUser: ["POST /user/gpg_keys"],
+      createPublicSshKeyForAuthenticated: [
+        "POST /user/keys",
+        {},
+        { renamed: ["users", "createPublicSshKeyForAuthenticatedUser"] }
+      ],
+      createPublicSshKeyForAuthenticatedUser: ["POST /user/keys"],
+      createSshSigningKeyForAuthenticatedUser: ["POST /user/ssh_signing_keys"],
+      deleteEmailForAuthenticated: [
+        "DELETE /user/emails",
+        {},
+        { renamed: ["users", "deleteEmailForAuthenticatedUser"] }
+      ],
+      deleteEmailForAuthenticatedUser: ["DELETE /user/emails"],
+      deleteGpgKeyForAuthenticated: [
+        "DELETE /user/gpg_keys/{gpg_key_id}",
+        {},
+        { renamed: ["users", "deleteGpgKeyForAuthenticatedUser"] }
+      ],
+      deleteGpgKeyForAuthenticatedUser: ["DELETE /user/gpg_keys/{gpg_key_id}"],
+      deletePublicSshKeyForAuthenticated: [
+        "DELETE /user/keys/{key_id}",
+        {},
+        { renamed: ["users", "deletePublicSshKeyForAuthenticatedUser"] }
+      ],
+      deletePublicSshKeyForAuthenticatedUser: ["DELETE /user/keys/{key_id}"],
+      deleteSocialAccountForAuthenticatedUser: ["DELETE /user/social_accounts"],
+      deleteSshSigningKeyForAuthenticatedUser: [
+        "DELETE /user/ssh_signing_keys/{ssh_signing_key_id}"
+      ],
+      follow: ["PUT /user/following/{username}"],
+      getAuthenticated: ["GET /user"],
+      getByUsername: ["GET /users/{username}"],
+      getContextForUser: ["GET /users/{username}/hovercard"],
+      getGpgKeyForAuthenticated: [
+        "GET /user/gpg_keys/{gpg_key_id}",
+        {},
+        { renamed: ["users", "getGpgKeyForAuthenticatedUser"] }
+      ],
+      getGpgKeyForAuthenticatedUser: ["GET /user/gpg_keys/{gpg_key_id}"],
+      getPublicSshKeyForAuthenticated: [
+        "GET /user/keys/{key_id}",
+        {},
+        { renamed: ["users", "getPublicSshKeyForAuthenticatedUser"] }
+      ],
+      getPublicSshKeyForAuthenticatedUser: ["GET /user/keys/{key_id}"],
+      getSshSigningKeyForAuthenticatedUser: [
+        "GET /user/ssh_signing_keys/{ssh_signing_key_id}"
+      ],
+      list: ["GET /users"],
+      listBlockedByAuthenticated: [
+        "GET /user/blocks",
+        {},
+        { renamed: ["users", "listBlockedByAuthenticatedUser"] }
+      ],
+      listBlockedByAuthenticatedUser: ["GET /user/blocks"],
+      listEmailsForAuthenticated: [
+        "GET /user/emails",
+        {},
+        { renamed: ["users", "listEmailsForAuthenticatedUser"] }
+      ],
+      listEmailsForAuthenticatedUser: ["GET /user/emails"],
+      listFollowedByAuthenticated: [
+        "GET /user/following",
+        {},
+        { renamed: ["users", "listFollowedByAuthenticatedUser"] }
+      ],
+      listFollowedByAuthenticatedUser: ["GET /user/following"],
+      listFollowersForAuthenticatedUser: ["GET /user/followers"],
+      listFollowersForUser: ["GET /users/{username}/followers"],
+      listFollowingForUser: ["GET /users/{username}/following"],
+      listGpgKeysForAuthenticated: [
+        "GET /user/gpg_keys",
+        {},
+        { renamed: ["users", "listGpgKeysForAuthenticatedUser"] }
+      ],
+      listGpgKeysForAuthenticatedUser: ["GET /user/gpg_keys"],
+      listGpgKeysForUser: ["GET /users/{username}/gpg_keys"],
+      listPublicEmailsForAuthenticated: [
+        "GET /user/public_emails",
+        {},
+        { renamed: ["users", "listPublicEmailsForAuthenticatedUser"] }
+      ],
+      listPublicEmailsForAuthenticatedUser: ["GET /user/public_emails"],
+      listPublicKeysForUser: ["GET /users/{username}/keys"],
+      listPublicSshKeysForAuthenticated: [
+        "GET /user/keys",
+        {},
+        { renamed: ["users", "listPublicSshKeysForAuthenticatedUser"] }
+      ],
+      listPublicSshKeysForAuthenticatedUser: ["GET /user/keys"],
+      listSocialAccountsForAuthenticatedUser: ["GET /user/social_accounts"],
+      listSocialAccountsForUser: ["GET /users/{username}/social_accounts"],
+      listSshSigningKeysForAuthenticatedUser: ["GET /user/ssh_signing_keys"],
+      listSshSigningKeysForUser: ["GET /users/{username}/ssh_signing_keys"],
+      setPrimaryEmailVisibilityForAuthenticated: [
+        "PATCH /user/email/visibility",
+        {},
+        { renamed: ["users", "setPrimaryEmailVisibilityForAuthenticatedUser"] }
+      ],
+      setPrimaryEmailVisibilityForAuthenticatedUser: [
+        "PATCH /user/email/visibility"
+      ],
+      unblock: ["DELETE /user/blocks/{username}"],
+      unfollow: ["DELETE /user/following/{username}"],
+      updateAuthenticated: ["PATCH /user"]
+    }
+  };
+  var endpoints_default = Endpoints;
+  var endpointMethodsMap = /* @__PURE__ */ new Map;
+  for (const [scope, endpoints] of Object.entries(endpoints_default)) {
+    for (const [methodName, endpoint] of Object.entries(endpoints)) {
+      const [route, defaults, decorations] = endpoint;
+      const [method, url] = route.split(/ /);
+      const endpointDefaults = Object.assign({
+        method,
+        url
+      }, defaults);
+      if (!endpointMethodsMap.has(scope)) {
+        endpointMethodsMap.set(scope, /* @__PURE__ */ new Map);
+      }
+      endpointMethodsMap.get(scope).set(methodName, {
+        scope,
+        methodName,
+        endpointDefaults,
+        decorations
+      });
+    }
+  }
+  var handler = {
+    has({ scope }, methodName) {
+      return endpointMethodsMap.get(scope).has(methodName);
+    },
+    getOwnPropertyDescriptor(target, methodName) {
+      return {
+        value: this.get(target, methodName),
+        configurable: true,
+        writable: true,
+        enumerable: true
+      };
+    },
+    defineProperty(target, methodName, descriptor) {
+      Object.defineProperty(target.cache, methodName, descriptor);
+      return true;
+    },
+    deleteProperty(target, methodName) {
+      delete target.cache[methodName];
+      return true;
+    },
+    ownKeys({ scope }) {
+      return [...endpointMethodsMap.get(scope).keys()];
+    },
+    set(target, methodName, value) {
+      return target.cache[methodName] = value;
+    },
+    get({ octokit, scope, cache }, methodName) {
+      if (cache[methodName]) {
+        return cache[methodName];
+      }
+      const method = endpointMethodsMap.get(scope).get(methodName);
+      if (!method) {
+        return;
+      }
+      const { endpointDefaults, decorations } = method;
+      if (decorations) {
+        cache[methodName] = decorate(octokit, scope, methodName, endpointDefaults, decorations);
+      } else {
+        cache[methodName] = octokit.request.defaults(endpointDefaults);
+      }
+      return cache[methodName];
+    }
+  };
+  function endpointsToMethods(octokit) {
+    const newMethods = {};
+    for (const scope of endpointMethodsMap.keys()) {
+      newMethods[scope] = new Proxy({ octokit, scope, cache: {} }, handler);
+    }
+    return newMethods;
+  }
+  function decorate(octokit, scope, methodName, defaults, decorations) {
+    const requestWithDefaults = octokit.request.defaults(defaults);
+    function withDecorations(...args) {
+      let options = requestWithDefaults.endpoint.merge(...args);
+      if (decorations.mapToData) {
+        options = Object.assign({}, options, {
+          data: options[decorations.mapToData],
+          [decorations.mapToData]: undefined
+        });
+        return requestWithDefaults(options);
+      }
+      if (decorations.renamed) {
+        const [newScope, newMethodName] = decorations.renamed;
+        octokit.log.warn(`octokit.${scope}.${methodName}() has been renamed to octokit.${newScope}.${newMethodName}()`);
+      }
+      if (decorations.deprecated) {
+        octokit.log.warn(decorations.deprecated);
+      }
+      if (decorations.renamedParameters) {
+        const options2 = requestWithDefaults.endpoint.merge(...args);
+        for (const [name, alias] of Object.entries(decorations.renamedParameters)) {
+          if (name in options2) {
+            octokit.log.warn(`"${name}" parameter is deprecated for "octokit.${scope}.${methodName}()". Use "${alias}" instead`);
+            if (!(alias in options2)) {
+              options2[alias] = options2[name];
+            }
+            delete options2[name];
+          }
+        }
+        return requestWithDefaults(options2);
+      }
+      return requestWithDefaults(...args);
+    }
+    return Object.assign(withDecorations, requestWithDefaults);
+  }
+  function restEndpointMethods(octokit) {
+    const api = endpointsToMethods(octokit);
+    return {
+      rest: api
+    };
+  }
+  restEndpointMethods.VERSION = VERSION;
+  function legacyRestEndpointMethods(octokit) {
+    const api = endpointsToMethods(octokit);
+    return {
+      ...api,
+      rest: api
+    };
+  }
+  legacyRestEndpointMethods.VERSION = VERSION;
+});
+
+// node_modules/@octokit/plugin-paginate-rest/dist-node/index.js
+var require_dist_node10 = __commonJS((exports, module) => {
+  var __defProp2 = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames2 = Object.getOwnPropertyNames;
+  var __hasOwnProp2 = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp2(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames2(from))
+        if (!__hasOwnProp2.call(to, key) && key !== except)
+          __defProp2(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp2({}, "__esModule", { value: true }), mod);
+  var dist_src_exports = {};
+  __export(dist_src_exports, {
+    composePaginateRest: () => composePaginateRest,
+    isPaginatingEndpoint: () => isPaginatingEndpoint,
+    paginateRest: () => paginateRest,
+    paginatingEndpoints: () => paginatingEndpoints
+  });
+  module.exports = __toCommonJS(dist_src_exports);
+  var VERSION = "9.2.2";
+  function normalizePaginatedListResponse(response) {
+    if (!response.data) {
+      return {
+        ...response,
+        data: []
+      };
+    }
+    const responseNeedsNormalization = "total_count" in response.data && !("url" in response.data);
+    if (!responseNeedsNormalization)
+      return response;
+    const incompleteResults = response.data.incomplete_results;
+    const repositorySelection = response.data.repository_selection;
+    const totalCount = response.data.total_count;
+    delete response.data.incomplete_results;
+    delete response.data.repository_selection;
+    delete response.data.total_count;
+    const namespaceKey = Object.keys(response.data)[0];
+    const data = response.data[namespaceKey];
+    response.data = data;
+    if (typeof incompleteResults !== "undefined") {
+      response.data.incomplete_results = incompleteResults;
+    }
+    if (typeof repositorySelection !== "undefined") {
+      response.data.repository_selection = repositorySelection;
+    }
+    response.data.total_count = totalCount;
+    return response;
+  }
+  function iterator(octokit, route, parameters) {
+    const options = typeof route === "function" ? route.endpoint(parameters) : octokit.request.endpoint(route, parameters);
+    const requestMethod = typeof route === "function" ? route : octokit.request;
+    const method = options.method;
+    const headers = options.headers;
+    let url = options.url;
+    return {
+      [Symbol.asyncIterator]: () => ({
+        async next() {
+          if (!url)
+            return { done: true };
+          try {
+            const response = await requestMethod({ method, url, headers });
+            const normalizedResponse = normalizePaginatedListResponse(response);
+            url = ((normalizedResponse.headers.link || "").match(/<([^<>]+)>;\s*rel="next"/) || [])[1];
+            return { value: normalizedResponse };
+          } catch (error) {
+            if (error.status !== 409)
+              throw error;
+            url = "";
+            return {
+              value: {
+                status: 200,
+                headers: {},
+                data: []
+              }
+            };
+          }
+        }
+      })
+    };
+  }
+  function paginate(octokit, route, parameters, mapFn) {
+    if (typeof parameters === "function") {
+      mapFn = parameters;
+      parameters = undefined;
+    }
+    return gather(octokit, [], iterator(octokit, route, parameters)[Symbol.asyncIterator](), mapFn);
+  }
+  function gather(octokit, results, iterator2, mapFn) {
+    return iterator2.next().then((result) => {
+      if (result.done) {
+        return results;
+      }
+      let earlyExit = false;
+      function done() {
+        earlyExit = true;
+      }
+      results = results.concat(mapFn ? mapFn(result.value, done) : result.value.data);
+      if (earlyExit) {
+        return results;
+      }
+      return gather(octokit, results, iterator2, mapFn);
+    });
+  }
+  var composePaginateRest = Object.assign(paginate, {
+    iterator
+  });
+  var paginatingEndpoints = [
+    "GET /advisories",
+    "GET /app/hook/deliveries",
+    "GET /app/installation-requests",
+    "GET /app/installations",
+    "GET /assignments/{assignment_id}/accepted_assignments",
+    "GET /classrooms",
+    "GET /classrooms/{classroom_id}/assignments",
+    "GET /enterprises/{enterprise}/dependabot/alerts",
+    "GET /enterprises/{enterprise}/secret-scanning/alerts",
+    "GET /events",
+    "GET /gists",
+    "GET /gists/public",
+    "GET /gists/starred",
+    "GET /gists/{gist_id}/comments",
+    "GET /gists/{gist_id}/commits",
+    "GET /gists/{gist_id}/forks",
+    "GET /installation/repositories",
+    "GET /issues",
+    "GET /licenses",
+    "GET /marketplace_listing/plans",
+    "GET /marketplace_listing/plans/{plan_id}/accounts",
+    "GET /marketplace_listing/stubbed/plans",
+    "GET /marketplace_listing/stubbed/plans/{plan_id}/accounts",
+    "GET /networks/{owner}/{repo}/events",
+    "GET /notifications",
+    "GET /organizations",
+    "GET /orgs/{org}/actions/cache/usage-by-repository",
+    "GET /orgs/{org}/actions/permissions/repositories",
+    "GET /orgs/{org}/actions/runners",
+    "GET /orgs/{org}/actions/secrets",
+    "GET /orgs/{org}/actions/secrets/{secret_name}/repositories",
+    "GET /orgs/{org}/actions/variables",
+    "GET /orgs/{org}/actions/variables/{name}/repositories",
+    "GET /orgs/{org}/blocks",
+    "GET /orgs/{org}/code-scanning/alerts",
+    "GET /orgs/{org}/codespaces",
+    "GET /orgs/{org}/codespaces/secrets",
+    "GET /orgs/{org}/codespaces/secrets/{secret_name}/repositories",
+    "GET /orgs/{org}/copilot/billing/seats",
+    "GET /orgs/{org}/dependabot/alerts",
+    "GET /orgs/{org}/dependabot/secrets",
+    "GET /orgs/{org}/dependabot/secrets/{secret_name}/repositories",
+    "GET /orgs/{org}/events",
+    "GET /orgs/{org}/failed_invitations",
+    "GET /orgs/{org}/hooks",
+    "GET /orgs/{org}/hooks/{hook_id}/deliveries",
+    "GET /orgs/{org}/installations",
+    "GET /orgs/{org}/invitations",
+    "GET /orgs/{org}/invitations/{invitation_id}/teams",
+    "GET /orgs/{org}/issues",
+    "GET /orgs/{org}/members",
+    "GET /orgs/{org}/members/{username}/codespaces",
+    "GET /orgs/{org}/migrations",
+    "GET /orgs/{org}/migrations/{migration_id}/repositories",
+    "GET /orgs/{org}/organization-roles/{role_id}/teams",
+    "GET /orgs/{org}/organization-roles/{role_id}/users",
+    "GET /orgs/{org}/outside_collaborators",
+    "GET /orgs/{org}/packages",
+    "GET /orgs/{org}/packages/{package_type}/{package_name}/versions",
+    "GET /orgs/{org}/personal-access-token-requests",
+    "GET /orgs/{org}/personal-access-token-requests/{pat_request_id}/repositories",
+    "GET /orgs/{org}/personal-access-tokens",
+    "GET /orgs/{org}/personal-access-tokens/{pat_id}/repositories",
+    "GET /orgs/{org}/projects",
+    "GET /orgs/{org}/properties/values",
+    "GET /orgs/{org}/public_members",
+    "GET /orgs/{org}/repos",
+    "GET /orgs/{org}/rulesets",
+    "GET /orgs/{org}/rulesets/rule-suites",
+    "GET /orgs/{org}/secret-scanning/alerts",
+    "GET /orgs/{org}/security-advisories",
+    "GET /orgs/{org}/teams",
+    "GET /orgs/{org}/teams/{team_slug}/discussions",
+    "GET /orgs/{org}/teams/{team_slug}/discussions/{discussion_number}/comments",
+    "GET /orgs/{org}/teams/{team_slug}/discussions/{discussion_number}/comments/{comment_number}/reactions",
+    "GET /orgs/{org}/teams/{team_slug}/discussions/{discussion_number}/reactions",
+    "GET /orgs/{org}/teams/{team_slug}/invitations",
+    "GET /orgs/{org}/teams/{team_slug}/members",
+    "GET /orgs/{org}/teams/{team_slug}/projects",
+    "GET /orgs/{org}/teams/{team_slug}/repos",
+    "GET /orgs/{org}/teams/{team_slug}/teams",
+    "GET /projects/columns/{column_id}/cards",
+    "GET /projects/{project_id}/collaborators",
+    "GET /projects/{project_id}/columns",
+    "GET /repos/{owner}/{repo}/actions/artifacts",
+    "GET /repos/{owner}/{repo}/actions/caches",
+    "GET /repos/{owner}/{repo}/actions/organization-secrets",
+    "GET /repos/{owner}/{repo}/actions/organization-variables",
+    "GET /repos/{owner}/{repo}/actions/runners",
+    "GET /repos/{owner}/{repo}/actions/runs",
+    "GET /repos/{owner}/{repo}/actions/runs/{run_id}/artifacts",
+    "GET /repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt_number}/jobs",
+    "GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs",
+    "GET /repos/{owner}/{repo}/actions/secrets",
+    "GET /repos/{owner}/{repo}/actions/variables",
+    "GET /repos/{owner}/{repo}/actions/workflows",
+    "GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs",
+    "GET /repos/{owner}/{repo}/activity",
+    "GET /repos/{owner}/{repo}/assignees",
+    "GET /repos/{owner}/{repo}/branches",
+    "GET /repos/{owner}/{repo}/check-runs/{check_run_id}/annotations",
+    "GET /repos/{owner}/{repo}/check-suites/{check_suite_id}/check-runs",
+    "GET /repos/{owner}/{repo}/code-scanning/alerts",
+    "GET /repos/{owner}/{repo}/code-scanning/alerts/{alert_number}/instances",
+    "GET /repos/{owner}/{repo}/code-scanning/analyses",
+    "GET /repos/{owner}/{repo}/codespaces",
+    "GET /repos/{owner}/{repo}/codespaces/devcontainers",
+    "GET /repos/{owner}/{repo}/codespaces/secrets",
+    "GET /repos/{owner}/{repo}/collaborators",
+    "GET /repos/{owner}/{repo}/comments",
+    "GET /repos/{owner}/{repo}/comments/{comment_id}/reactions",
+    "GET /repos/{owner}/{repo}/commits",
+    "GET /repos/{owner}/{repo}/commits/{commit_sha}/comments",
+    "GET /repos/{owner}/{repo}/commits/{commit_sha}/pulls",
+    "GET /repos/{owner}/{repo}/commits/{ref}/check-runs",
+    "GET /repos/{owner}/{repo}/commits/{ref}/check-suites",
+    "GET /repos/{owner}/{repo}/commits/{ref}/status",
+    "GET /repos/{owner}/{repo}/commits/{ref}/statuses",
+    "GET /repos/{owner}/{repo}/contributors",
+    "GET /repos/{owner}/{repo}/dependabot/alerts",
+    "GET /repos/{owner}/{repo}/dependabot/secrets",
+    "GET /repos/{owner}/{repo}/deployments",
+    "GET /repos/{owner}/{repo}/deployments/{deployment_id}/statuses",
+    "GET /repos/{owner}/{repo}/environments",
+    "GET /repos/{owner}/{repo}/environments/{environment_name}/deployment-branch-policies",
+    "GET /repos/{owner}/{repo}/environments/{environment_name}/deployment_protection_rules/apps",
+    "GET /repos/{owner}/{repo}/events",
+    "GET /repos/{owner}/{repo}/forks",
+    "GET /repos/{owner}/{repo}/hooks",
+    "GET /repos/{owner}/{repo}/hooks/{hook_id}/deliveries",
+    "GET /repos/{owner}/{repo}/invitations",
+    "GET /repos/{owner}/{repo}/issues",
+    "GET /repos/{owner}/{repo}/issues/comments",
+    "GET /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions",
+    "GET /repos/{owner}/{repo}/issues/events",
+    "GET /repos/{owner}/{repo}/issues/{issue_number}/comments",
+    "GET /repos/{owner}/{repo}/issues/{issue_number}/events",
+    "GET /repos/{owner}/{repo}/issues/{issue_number}/labels",
+    "GET /repos/{owner}/{repo}/issues/{issue_number}/reactions",
+    "GET /repos/{owner}/{repo}/issues/{issue_number}/timeline",
+    "GET /repos/{owner}/{repo}/keys",
+    "GET /repos/{owner}/{repo}/labels",
+    "GET /repos/{owner}/{repo}/milestones",
+    "GET /repos/{owner}/{repo}/milestones/{milestone_number}/labels",
+    "GET /repos/{owner}/{repo}/notifications",
+    "GET /repos/{owner}/{repo}/pages/builds",
+    "GET /repos/{owner}/{repo}/projects",
+    "GET /repos/{owner}/{repo}/pulls",
+    "GET /repos/{owner}/{repo}/pulls/comments",
+    "GET /repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions",
+    "GET /repos/{owner}/{repo}/pulls/{pull_number}/comments",
+    "GET /repos/{owner}/{repo}/pulls/{pull_number}/commits",
+    "GET /repos/{owner}/{repo}/pulls/{pull_number}/files",
+    "GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews",
+    "GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}/comments",
+    "GET /repos/{owner}/{repo}/releases",
+    "GET /repos/{owner}/{repo}/releases/{release_id}/assets",
+    "GET /repos/{owner}/{repo}/releases/{release_id}/reactions",
+    "GET /repos/{owner}/{repo}/rules/branches/{branch}",
+    "GET /repos/{owner}/{repo}/rulesets",
+    "GET /repos/{owner}/{repo}/rulesets/rule-suites",
+    "GET /repos/{owner}/{repo}/secret-scanning/alerts",
+    "GET /repos/{owner}/{repo}/secret-scanning/alerts/{alert_number}/locations",
+    "GET /repos/{owner}/{repo}/security-advisories",
+    "GET /repos/{owner}/{repo}/stargazers",
+    "GET /repos/{owner}/{repo}/subscribers",
+    "GET /repos/{owner}/{repo}/tags",
+    "GET /repos/{owner}/{repo}/teams",
+    "GET /repos/{owner}/{repo}/topics",
+    "GET /repositories",
+    "GET /repositories/{repository_id}/environments/{environment_name}/secrets",
+    "GET /repositories/{repository_id}/environments/{environment_name}/variables",
+    "GET /search/code",
+    "GET /search/commits",
+    "GET /search/issues",
+    "GET /search/labels",
+    "GET /search/repositories",
+    "GET /search/topics",
+    "GET /search/users",
+    "GET /teams/{team_id}/discussions",
+    "GET /teams/{team_id}/discussions/{discussion_number}/comments",
+    "GET /teams/{team_id}/discussions/{discussion_number}/comments/{comment_number}/reactions",
+    "GET /teams/{team_id}/discussions/{discussion_number}/reactions",
+    "GET /teams/{team_id}/invitations",
+    "GET /teams/{team_id}/members",
+    "GET /teams/{team_id}/projects",
+    "GET /teams/{team_id}/repos",
+    "GET /teams/{team_id}/teams",
+    "GET /user/blocks",
+    "GET /user/codespaces",
+    "GET /user/codespaces/secrets",
+    "GET /user/emails",
+    "GET /user/followers",
+    "GET /user/following",
+    "GET /user/gpg_keys",
+    "GET /user/installations",
+    "GET /user/installations/{installation_id}/repositories",
+    "GET /user/issues",
+    "GET /user/keys",
+    "GET /user/marketplace_purchases",
+    "GET /user/marketplace_purchases/stubbed",
+    "GET /user/memberships/orgs",
+    "GET /user/migrations",
+    "GET /user/migrations/{migration_id}/repositories",
+    "GET /user/orgs",
+    "GET /user/packages",
+    "GET /user/packages/{package_type}/{package_name}/versions",
+    "GET /user/public_emails",
+    "GET /user/repos",
+    "GET /user/repository_invitations",
+    "GET /user/social_accounts",
+    "GET /user/ssh_signing_keys",
+    "GET /user/starred",
+    "GET /user/subscriptions",
+    "GET /user/teams",
+    "GET /users",
+    "GET /users/{username}/events",
+    "GET /users/{username}/events/orgs/{org}",
+    "GET /users/{username}/events/public",
+    "GET /users/{username}/followers",
+    "GET /users/{username}/following",
+    "GET /users/{username}/gists",
+    "GET /users/{username}/gpg_keys",
+    "GET /users/{username}/keys",
+    "GET /users/{username}/orgs",
+    "GET /users/{username}/packages",
+    "GET /users/{username}/projects",
+    "GET /users/{username}/received_events",
+    "GET /users/{username}/received_events/public",
+    "GET /users/{username}/repos",
+    "GET /users/{username}/social_accounts",
+    "GET /users/{username}/ssh_signing_keys",
+    "GET /users/{username}/starred",
+    "GET /users/{username}/subscriptions"
+  ];
+  function isPaginatingEndpoint(arg) {
+    if (typeof arg === "string") {
+      return paginatingEndpoints.includes(arg);
+    } else {
+      return false;
+    }
+  }
+  function paginateRest(octokit) {
+    return {
+      paginate: Object.assign(paginate.bind(null, octokit), {
+        iterator: iterator.bind(null, octokit)
+      })
+    };
+  }
+  paginateRest.VERSION = VERSION;
+});
+
+// node_modules/@actions/github/lib/utils.js
+var require_utils4 = __commonJS((exports) => {
+  var __createBinding = exports && exports.__createBinding || (Object.create ? function(o, m, k, k2) {
+    if (k2 === undefined)
+      k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() {
+        return m[k];
+      } };
+    }
+    Object.defineProperty(o, k2, desc);
+  } : function(o, m, k, k2) {
+    if (k2 === undefined)
+      k2 = k;
+    o[k2] = m[k];
+  });
+  var __setModuleDefault = exports && exports.__setModuleDefault || (Object.create ? function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+  } : function(o, v) {
+    o["default"] = v;
+  });
+  var __importStar = exports && exports.__importStar || function(mod) {
+    if (mod && mod.__esModule)
+      return mod;
+    var result = {};
+    if (mod != null) {
+      for (var k in mod)
+        if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k))
+          __createBinding(result, mod, k);
+    }
+    __setModuleDefault(result, mod);
+    return result;
+  };
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.getOctokitOptions = exports.GitHub = exports.defaults = exports.context = undefined;
+  var Context = __importStar(require_context());
+  var Utils = __importStar(require_utils3());
+  var core_1 = require_dist_node8();
+  var plugin_rest_endpoint_methods_1 = require_dist_node9();
+  var plugin_paginate_rest_1 = require_dist_node10();
+  exports.context = new Context.Context;
+  var baseUrl = Utils.getApiBaseUrl();
+  exports.defaults = {
+    baseUrl,
+    request: {
+      agent: Utils.getProxyAgent(baseUrl),
+      fetch: Utils.getProxyFetch(baseUrl)
+    }
+  };
+  exports.GitHub = core_1.Octokit.plugin(plugin_rest_endpoint_methods_1.restEndpointMethods, plugin_paginate_rest_1.paginateRest).defaults(exports.defaults);
+  function getOctokitOptions(token, options) {
+    const opts = Object.assign({}, options || {});
+    const auth = Utils.getAuthString(token, opts);
+    if (auth) {
+      opts.auth = auth;
+    }
+    return opts;
+  }
+  exports.getOctokitOptions = getOctokitOptions;
+});
+
+// node_modules/@actions/github/lib/github.js
+var require_github = __commonJS((exports) => {
+  var __createBinding = exports && exports.__createBinding || (Object.create ? function(o, m, k, k2) {
+    if (k2 === undefined)
+      k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() {
+        return m[k];
+      } };
+    }
+    Object.defineProperty(o, k2, desc);
+  } : function(o, m, k, k2) {
+    if (k2 === undefined)
+      k2 = k;
+    o[k2] = m[k];
+  });
+  var __setModuleDefault = exports && exports.__setModuleDefault || (Object.create ? function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+  } : function(o, v) {
+    o["default"] = v;
+  });
+  var __importStar = exports && exports.__importStar || function(mod) {
+    if (mod && mod.__esModule)
+      return mod;
+    var result = {};
+    if (mod != null) {
+      for (var k in mod)
+        if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k))
+          __createBinding(result, mod, k);
+    }
+    __setModuleDefault(result, mod);
+    return result;
+  };
+  Object.defineProperty(exports, "__esModule", { value: true });
+  exports.getOctokit = exports.context = undefined;
+  var Context = __importStar(require_context());
+  var utils_1 = require_utils4();
+  exports.context = new Context.Context;
+  function getOctokit(token, options, ...additionalPlugins) {
+    const GitHubWithPlugins = utils_1.GitHub.plugin(...additionalPlugins);
+    return new GitHubWithPlugins((0, utils_1.getOctokitOptions)(token, options));
+  }
+  exports.getOctokit = getOctokit;
+});
+
+// node_modules/path-exists/index.js
+var require_path_exists = __commonJS((exports, module) => {
+  var fs = __require("fs");
+  module.exports = (fp) => new Promise((resolve) => {
+    fs.access(fp, (err) => {
+      resolve(!err);
+    });
+  });
+  module.exports.sync = (fp) => {
+    try {
+      fs.accessSync(fp);
+      return true;
+    } catch (err) {
+      return false;
+    }
+  };
+});
+
+// node_modules/p-try/index.js
+var require_p_try = __commonJS((exports, module) => {
+  module.exports = (cb) => new Promise((resolve) => {
+    resolve(cb());
+  });
+});
+
+// node_modules/p-limit/index.js
+var require_p_limit = __commonJS((exports, module) => {
+  var pTry = require_p_try();
+  module.exports = (concurrency) => {
+    if (concurrency < 1) {
+      throw new TypeError("Expected `concurrency` to be a number from 1 and up");
+    }
+    const queue = [];
+    let activeCount = 0;
+    const next = () => {
+      activeCount--;
+      if (queue.length > 0) {
+        queue.shift()();
+      }
+    };
+    return (fn) => new Promise((resolve, reject) => {
+      const run = () => {
+        activeCount++;
+        pTry(fn).then((val) => {
+          resolve(val);
+          next();
+        }, (err) => {
+          reject(err);
+          next();
+        });
+      };
+      if (activeCount < concurrency) {
+        run();
+      } else {
+        queue.push(run);
+      }
+    });
+  };
+});
+
+// node_modules/p-locate/index.js
+var require_p_locate = __commonJS((exports, module) => {
+  var pLimit = require_p_limit();
+
+  class EndError extends Error {
+    constructor(value) {
+      super();
+      this.value = value;
+    }
+  }
+  var finder = (el) => Promise.all(el).then((val) => val[1] === true && Promise.reject(new EndError(val[0])));
+  module.exports = (iterable, tester, opts) => {
+    opts = Object.assign({
+      concurrency: Infinity,
+      preserveOrder: true
+    }, opts);
+    const limit = pLimit(opts.concurrency);
+    const items = Array.from(iterable).map((el) => [el, limit(() => Promise.resolve(el).then(tester))]);
+    const checkLimit = pLimit(opts.preserveOrder ? 1 : Infinity);
+    return Promise.all(items.map((el) => checkLimit(() => finder(el)))).then(() => {}).catch((err) => err instanceof EndError ? err.value : Promise.reject(err));
+  };
+});
+
+// node_modules/locate-path/index.js
+var require_locate_path = __commonJS((exports, module) => {
+  var path = __require("path");
+  var pathExists = require_path_exists();
+  var pLocate = require_p_locate();
+  module.exports = (iterable, opts) => {
+    opts = Object.assign({
+      cwd: process.cwd()
+    }, opts);
+    return pLocate(iterable, (el) => pathExists(path.resolve(opts.cwd, el)), opts);
+  };
+  module.exports.sync = (iterable, opts) => {
+    opts = Object.assign({
+      cwd: process.cwd()
+    }, opts);
+    for (const el of iterable) {
+      if (pathExists.sync(path.resolve(opts.cwd, el))) {
+        return el;
+      }
+    }
+  };
+});
+
+// node_modules/find-up/index.js
+var require_find_up = __commonJS((exports, module) => {
+  var path = __require("path");
+  var locatePath = require_locate_path();
+  module.exports = (filename, opts) => {
+    opts = opts || {};
+    const startDir = path.resolve(opts.cwd || "");
+    const root = path.parse(startDir).root;
+    const filenames = [].concat(filename);
+    return new Promise((resolve) => {
+      (function find(dir) {
+        locatePath(filenames, { cwd: dir }).then((file) => {
+          if (file) {
+            resolve(path.join(dir, file));
+          } else if (dir === root) {
+            resolve(null);
+          } else {
+            find(path.dirname(dir));
+          }
+        });
+      })(startDir);
+    });
+  };
+  module.exports.sync = (filename, opts) => {
+    opts = opts || {};
+    let dir = path.resolve(opts.cwd || "");
+    const root = path.parse(dir).root;
+    const filenames = [].concat(filename);
+    while (true) {
+      const file = locatePath.sync(filenames, { cwd: dir });
+      if (file) {
+        return path.join(dir, file);
+      } else if (dir === root) {
+        return null;
+      }
+      dir = path.dirname(dir);
+    }
+  };
+});
+
+// node_modules/ignore/ignore.js
+var require_ignore = __commonJS((exports, module) => {
+  var _createClass = function() {
+    function defineProperties(target, props) {
+      for (var i = 0;i < props.length; i++) {
+        var descriptor = props[i];
+        descriptor.enumerable = descriptor.enumerable || false;
+        descriptor.configurable = true;
+        if ("value" in descriptor)
+          descriptor.writable = true;
+        Object.defineProperty(target, descriptor.key, descriptor);
+      }
+    }
+    return function(Constructor, protoProps, staticProps) {
+      if (protoProps)
+        defineProperties(Constructor.prototype, protoProps);
+      if (staticProps)
+        defineProperties(Constructor, staticProps);
+      return Constructor;
+    };
+  }();
+  function _classCallCheck(instance, Constructor) {
+    if (!(instance instanceof Constructor)) {
+      throw new TypeError("Cannot call a class as a function");
+    }
+  }
+  module.exports = function() {
+    return new IgnoreBase;
+  };
+  function make_array(subject) {
+    return Array.isArray(subject) ? subject : [subject];
+  }
+  var REGEX_BLANK_LINE = /^\s+$/;
+  var REGEX_LEADING_EXCAPED_EXCLAMATION = /^\\\!/;
+  var REGEX_LEADING_EXCAPED_HASH = /^\\#/;
+  var SLASH = "/";
+  var KEY_IGNORE = typeof Symbol !== "undefined" ? Symbol.for("node-ignore") : "node-ignore";
+  var IgnoreBase = function() {
+    function IgnoreBase2() {
+      _classCallCheck(this, IgnoreBase2);
+      this._rules = [];
+      this[KEY_IGNORE] = true;
+      this._initCache();
+    }
+    _createClass(IgnoreBase2, [{
+      key: "_initCache",
+      value: function _initCache() {
+        this._cache = {};
+      }
+    }, {
+      key: "add",
+      value: function add(pattern) {
+        this._added = false;
+        if (typeof pattern === "string") {
+          pattern = pattern.split(/\r?\n/g);
+        }
+        make_array(pattern).forEach(this._addPattern, this);
+        if (this._added) {
+          this._initCache();
+        }
+        return this;
+      }
+    }, {
+      key: "addPattern",
+      value: function addPattern(pattern) {
+        return this.add(pattern);
+      }
+    }, {
+      key: "_addPattern",
+      value: function _addPattern(pattern) {
+        if (pattern && pattern[KEY_IGNORE]) {
+          this._rules = this._rules.concat(pattern._rules);
+          this._added = true;
+          return;
+        }
+        if (this._checkPattern(pattern)) {
+          var rule = this._createRule(pattern);
+          this._added = true;
+          this._rules.push(rule);
+        }
+      }
+    }, {
+      key: "_checkPattern",
+      value: function _checkPattern(pattern) {
+        return pattern && typeof pattern === "string" && !REGEX_BLANK_LINE.test(pattern) && pattern.indexOf("#") !== 0;
+      }
+    }, {
+      key: "filter",
+      value: function filter2(paths) {
+        var _this = this;
+        return make_array(paths).filter(function(path) {
+          return _this._filter(path);
+        });
+      }
+    }, {
+      key: "createFilter",
+      value: function createFilter() {
+        var _this2 = this;
+        return function(path) {
+          return _this2._filter(path);
+        };
+      }
+    }, {
+      key: "ignores",
+      value: function ignores(path) {
+        return !this._filter(path);
+      }
+    }, {
+      key: "_createRule",
+      value: function _createRule(pattern) {
+        var origin = pattern;
+        var negative = false;
+        if (pattern.indexOf("!") === 0) {
+          negative = true;
+          pattern = pattern.substr(1);
+        }
+        pattern = pattern.replace(REGEX_LEADING_EXCAPED_EXCLAMATION, "!").replace(REGEX_LEADING_EXCAPED_HASH, "#");
+        var regex = make_regex(pattern, negative);
+        return {
+          origin,
+          pattern,
+          negative,
+          regex
+        };
+      }
+    }, {
+      key: "_filter",
+      value: function _filter(path, slices) {
+        if (!path) {
+          return false;
+        }
+        if (path in this._cache) {
+          return this._cache[path];
+        }
+        if (!slices) {
+          slices = path.split(SLASH);
+        }
+        slices.pop();
+        return this._cache[path] = slices.length ? this._filter(slices.join(SLASH) + SLASH, slices) && this._test(path) : this._test(path);
+      }
+    }, {
+      key: "_test",
+      value: function _test(path) {
+        var matched = 0;
+        this._rules.forEach(function(rule) {
+          if (!(matched ^ rule.negative)) {
+            matched = rule.negative ^ rule.regex.test(path);
+          }
+        });
+        return !matched;
+      }
+    }]);
+    return IgnoreBase2;
+  }();
+  var DEFAULT_REPLACER_PREFIX = [
+    [
+      /\\?\s+$/,
+      function(match) {
+        return match.indexOf("\\") === 0 ? " " : "";
+      }
+    ],
+    [/\\\s/g, function() {
+      return " ";
+    }],
+    [/[\\\^$.|?*+()\[{]/g, function(match) {
+      return "\\" + match;
+    }],
+    [
+      /^\//,
+      function() {
+        return "^";
+      }
+    ],
+    [/\//g, function() {
+      return "\\/";
+    }],
+    [
+      /^\^*\\\*\\\*\\\//,
+      function() {
+        return "^(?:.*\\/)?";
+      }
+    ]
+  ];
+  var DEFAULT_REPLACER_SUFFIX = [
+    [
+      /^(?=[^\^])/,
+      function() {
+        return !/\/(?!$)/.test(this) ? "(?:^|\\/)" : "^";
+      }
+    ],
+    [
+      /\\\/\\\*\\\*(?=\\\/|$)/g,
+      function(match, index, str) {
+        return index + 6 < str.length ? "(?:\\/[^\\/]+)*" : "\\/.+";
+      }
+    ],
+    [
+      /(^|[^\\]+)\\\*(?=.+)/g,
+      function(match, p1) {
+        return p1 + "[^\\/]*";
+      }
+    ],
+    [/(\^|\\\/)?\\\*$/, function(match, p1) {
+      return (p1 ? p1 + "[^/]+" : "[^/]*") + "(?=$|\\/$)";
+    }],
+    [
+      /\\\\\\/g,
+      function() {
+        return "\\";
+      }
+    ]
+  ];
+  var POSITIVE_REPLACERS = [].concat(DEFAULT_REPLACER_PREFIX, [
+    [
+      /(?:[^*\/])$/,
+      function(match) {
+        return match + "(?=$|\\/)";
+      }
+    ]
+  ], DEFAULT_REPLACER_SUFFIX);
+  var NEGATIVE_REPLACERS = [].concat(DEFAULT_REPLACER_PREFIX, [
+    [/(?:[^*])$/, function(match) {
+      return match + "(?=$|\\/$)";
+    }]
+  ], DEFAULT_REPLACER_SUFFIX);
+  var cache = {};
+  function make_regex(pattern, negative) {
+    var r = cache[pattern];
+    if (r) {
+      return r;
+    }
+    var replacers = negative ? NEGATIVE_REPLACERS : POSITIVE_REPLACERS;
+    var source = replacers.reduce(function(prev, current) {
+      return prev.replace(current[0], current[1].bind(pattern));
+    }, pattern);
+    return cache[pattern] = new RegExp(source, "i");
+  }
+  if (typeof process !== "undefined" && (process.env && process.env.IGNORE_TEST_WIN32 || process.platform === "win32")) {
+    filter = IgnoreBase.prototype._filter;
+    make_posix = function make_posix2(str) {
+      return /^\\\\\?\\/.test(str) || /[^\x00-\x80]+/.test(str) ? str : str.replace(/\\/g, "/");
+    };
+    IgnoreBase.prototype._filter = function(path, slices) {
+      path = make_posix(path);
+      return filter.call(this, path, slices);
+    };
+  }
+  var filter;
+  var make_posix;
+});
+
+// node_modules/is-directory/index.js
+var require_is_directory = __commonJS((exports, module) => {
+  /*!
+   * is-directory <https://github.com/jonschlinkert/is-directory>
+   *
+   * Copyright (c) 2014-2015, Jon Schlinkert.
+   * Licensed under the MIT License.
+   */
+  var fs = __require("fs");
+  function isDirectory(filepath, cb) {
+    if (typeof cb !== "function") {
+      throw new Error("expected a callback function");
+    }
+    if (typeof filepath !== "string") {
+      cb(new Error("expected filepath to be a string"));
+      return;
+    }
+    fs.stat(filepath, function(err, stats) {
+      if (err) {
+        if (err.code === "ENOENT") {
+          cb(null, false);
+          return;
+        }
+        cb(err);
+        return;
+      }
+      cb(null, stats.isDirectory());
+    });
+  }
+  isDirectory.sync = function isDirectorySync(filepath) {
+    if (typeof filepath !== "string") {
+      throw new Error("expected filepath to be a string");
+    }
+    try {
+      var stat = fs.statSync(filepath);
+      return stat.isDirectory();
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        return false;
+      } else {
+        throw err;
+      }
+    }
+    return false;
+  };
+  module.exports = isDirectory;
+});
+
+// node_modules/fs.realpath/old.js
+var require_old = __commonJS((exports) => {
+  var pathModule = __require("path");
+  var isWindows = process.platform === "win32";
+  var fs = __require("fs");
+  var DEBUG = process.env.NODE_DEBUG && /fs/.test(process.env.NODE_DEBUG);
+  function rethrow() {
+    var callback;
+    if (DEBUG) {
+      var backtrace = new Error;
+      callback = debugCallback;
+    } else
+      callback = missingCallback;
+    return callback;
+    function debugCallback(err) {
+      if (err) {
+        backtrace.message = err.message;
+        err = backtrace;
+        missingCallback(err);
+      }
+    }
+    function missingCallback(err) {
+      if (err) {
+        if (process.throwDeprecation)
+          throw err;
+        else if (!process.noDeprecation) {
+          var msg = "fs: missing callback " + (err.stack || err.message);
+          if (process.traceDeprecation)
+            console.trace(msg);
+          else
+            console.error(msg);
+        }
+      }
+    }
+  }
+  function maybeCallback(cb) {
+    return typeof cb === "function" ? cb : rethrow();
+  }
+  var normalize = pathModule.normalize;
+  if (isWindows) {
+    nextPartRe = /(.*?)(?:[\/\\]+|$)/g;
+  } else {
+    nextPartRe = /(.*?)(?:[\/]+|$)/g;
+  }
+  var nextPartRe;
+  if (isWindows) {
+    splitRootRe = /^(?:[a-zA-Z]:|[\\\/]{2}[^\\\/]+[\\\/][^\\\/]+)?[\\\/]*/;
+  } else {
+    splitRootRe = /^[\/]*/;
+  }
+  var splitRootRe;
+  exports.realpathSync = function realpathSync(p, cache) {
+    p = pathModule.resolve(p);
+    if (cache && Object.prototype.hasOwnProperty.call(cache, p)) {
+      return cache[p];
+    }
+    var original = p, seenLinks = {}, knownHard = {};
+    var pos;
+    var current;
+    var base;
+    var previous;
+    start();
+    function start() {
+      var m = splitRootRe.exec(p);
+      pos = m[0].length;
+      current = m[0];
+      base = m[0];
+      previous = "";
+      if (isWindows && !knownHard[base]) {
+        fs.lstatSync(base);
+        knownHard[base] = true;
+      }
+    }
+    while (pos < p.length) {
+      nextPartRe.lastIndex = pos;
+      var result = nextPartRe.exec(p);
+      previous = current;
+      current += result[0];
+      base = previous + result[1];
+      pos = nextPartRe.lastIndex;
+      if (knownHard[base] || cache && cache[base] === base) {
+        continue;
+      }
+      var resolvedLink;
+      if (cache && Object.prototype.hasOwnProperty.call(cache, base)) {
+        resolvedLink = cache[base];
+      } else {
+        var stat = fs.lstatSync(base);
+        if (!stat.isSymbolicLink()) {
+          knownHard[base] = true;
+          if (cache)
+            cache[base] = base;
+          continue;
+        }
+        var linkTarget = null;
+        if (!isWindows) {
+          var id = stat.dev.toString(32) + ":" + stat.ino.toString(32);
+          if (seenLinks.hasOwnProperty(id)) {
+            linkTarget = seenLinks[id];
+          }
+        }
+        if (linkTarget === null) {
+          fs.statSync(base);
+          linkTarget = fs.readlinkSync(base);
+        }
+        resolvedLink = pathModule.resolve(previous, linkTarget);
+        if (cache)
+          cache[base] = resolvedLink;
+        if (!isWindows)
+          seenLinks[id] = linkTarget;
+      }
+      p = pathModule.resolve(resolvedLink, p.slice(pos));
+      start();
+    }
+    if (cache)
+      cache[original] = p;
+    return p;
+  };
+  exports.realpath = function realpath(p, cache, cb) {
+    if (typeof cb !== "function") {
+      cb = maybeCallback(cache);
+      cache = null;
+    }
+    p = pathModule.resolve(p);
+    if (cache && Object.prototype.hasOwnProperty.call(cache, p)) {
+      return process.nextTick(cb.bind(null, null, cache[p]));
+    }
+    var original = p, seenLinks = {}, knownHard = {};
+    var pos;
+    var current;
+    var base;
+    var previous;
+    start();
+    function start() {
+      var m = splitRootRe.exec(p);
+      pos = m[0].length;
+      current = m[0];
+      base = m[0];
+      previous = "";
+      if (isWindows && !knownHard[base]) {
+        fs.lstat(base, function(err) {
+          if (err)
+            return cb(err);
+          knownHard[base] = true;
+          LOOP();
+        });
+      } else {
+        process.nextTick(LOOP);
+      }
+    }
+    function LOOP() {
+      if (pos >= p.length) {
+        if (cache)
+          cache[original] = p;
+        return cb(null, p);
+      }
+      nextPartRe.lastIndex = pos;
+      var result = nextPartRe.exec(p);
+      previous = current;
+      current += result[0];
+      base = previous + result[1];
+      pos = nextPartRe.lastIndex;
+      if (knownHard[base] || cache && cache[base] === base) {
+        return process.nextTick(LOOP);
+      }
+      if (cache && Object.prototype.hasOwnProperty.call(cache, base)) {
+        return gotResolvedLink(cache[base]);
+      }
+      return fs.lstat(base, gotStat);
+    }
+    function gotStat(err, stat) {
+      if (err)
+        return cb(err);
+      if (!stat.isSymbolicLink()) {
+        knownHard[base] = true;
+        if (cache)
+          cache[base] = base;
+        return process.nextTick(LOOP);
+      }
+      if (!isWindows) {
+        var id = stat.dev.toString(32) + ":" + stat.ino.toString(32);
+        if (seenLinks.hasOwnProperty(id)) {
+          return gotTarget(null, seenLinks[id], base);
+        }
+      }
+      fs.stat(base, function(err2) {
+        if (err2)
+          return cb(err2);
+        fs.readlink(base, function(err3, target) {
+          if (!isWindows)
+            seenLinks[id] = target;
+          gotTarget(err3, target);
+        });
+      });
+    }
+    function gotTarget(err, target, base2) {
+      if (err)
+        return cb(err);
+      var resolvedLink = pathModule.resolve(previous, target);
+      if (cache)
+        cache[base2] = resolvedLink;
+      gotResolvedLink(resolvedLink);
+    }
+    function gotResolvedLink(resolvedLink) {
+      p = pathModule.resolve(resolvedLink, p.slice(pos));
+      start();
+    }
+  };
+});
+
+// node_modules/fs.realpath/index.js
+var require_fs = __commonJS((exports, module) => {
+  module.exports = realpath;
+  realpath.realpath = realpath;
+  realpath.sync = realpathSync;
+  realpath.realpathSync = realpathSync;
+  realpath.monkeypatch = monkeypatch;
+  realpath.unmonkeypatch = unmonkeypatch;
+  var fs = __require("fs");
+  var origRealpath = fs.realpath;
+  var origRealpathSync = fs.realpathSync;
+  var version = process.version;
+  var ok = /^v[0-5]\./.test(version);
+  var old = require_old();
+  function newError(er) {
+    return er && er.syscall === "realpath" && (er.code === "ELOOP" || er.code === "ENOMEM" || er.code === "ENAMETOOLONG");
+  }
+  function realpath(p, cache, cb) {
+    if (ok) {
+      return origRealpath(p, cache, cb);
+    }
+    if (typeof cache === "function") {
+      cb = cache;
+      cache = null;
+    }
+    origRealpath(p, cache, function(er, result) {
+      if (newError(er)) {
+        old.realpath(p, cache, cb);
+      } else {
+        cb(er, result);
+      }
+    });
+  }
+  function realpathSync(p, cache) {
+    if (ok) {
+      return origRealpathSync(p, cache);
+    }
+    try {
+      return origRealpathSync(p, cache);
+    } catch (er) {
+      if (newError(er)) {
+        return old.realpathSync(p, cache);
+      } else {
+        throw er;
+      }
+    }
+  }
+  function monkeypatch() {
+    fs.realpath = realpath;
+    fs.realpathSync = realpathSync;
+  }
+  function unmonkeypatch() {
+    fs.realpath = origRealpath;
+    fs.realpathSync = origRealpathSync;
+  }
+});
+
+// node_modules/concat-map/index.js
+var require_concat_map = __commonJS((exports, module) => {
+  module.exports = function(xs, fn) {
+    var res = [];
+    for (var i = 0;i < xs.length; i++) {
+      var x = fn(xs[i], i);
+      if (isArray(x))
+        res.push.apply(res, x);
+      else
+        res.push(x);
+    }
+    return res;
+  };
+  var isArray = Array.isArray || function(xs) {
+    return Object.prototype.toString.call(xs) === "[object Array]";
+  };
+});
+
+// node_modules/balanced-match/index.js
+var require_balanced_match = __commonJS((exports, module) => {
+  module.exports = balanced;
+  function balanced(a, b, str) {
+    if (a instanceof RegExp)
+      a = maybeMatch(a, str);
+    if (b instanceof RegExp)
+      b = maybeMatch(b, str);
+    var r = range(a, b, str);
+    return r && {
+      start: r[0],
+      end: r[1],
+      pre: str.slice(0, r[0]),
+      body: str.slice(r[0] + a.length, r[1]),
+      post: str.slice(r[1] + b.length)
+    };
+  }
+  function maybeMatch(reg, str) {
+    var m = str.match(reg);
+    return m ? m[0] : null;
+  }
+  balanced.range = range;
+  function range(a, b, str) {
+    var begs, beg, left, right, result;
+    var ai = str.indexOf(a);
+    var bi = str.indexOf(b, ai + 1);
+    var i = ai;
+    if (ai >= 0 && bi > 0) {
+      if (a === b) {
+        return [ai, bi];
+      }
+      begs = [];
+      left = str.length;
+      while (i >= 0 && !result) {
+        if (i == ai) {
+          begs.push(i);
+          ai = str.indexOf(a, i + 1);
+        } else if (begs.length == 1) {
+          result = [begs.pop(), bi];
+        } else {
+          beg = begs.pop();
+          if (beg < left) {
+            left = beg;
+            right = bi;
+          }
+          bi = str.indexOf(b, i + 1);
+        }
+        i = ai < bi && ai >= 0 ? ai : bi;
+      }
+      if (begs.length) {
+        result = [left, right];
+      }
+    }
+    return result;
+  }
+});
+
+// node_modules/brace-expansion/index.js
+var require_brace_expansion = __commonJS((exports, module) => {
+  var concatMap = require_concat_map();
+  var balanced = require_balanced_match();
+  module.exports = expandTop;
+  var escSlash = "\x00SLASH" + Math.random() + "\x00";
+  var escOpen = "\x00OPEN" + Math.random() + "\x00";
+  var escClose = "\x00CLOSE" + Math.random() + "\x00";
+  var escComma = "\x00COMMA" + Math.random() + "\x00";
+  var escPeriod = "\x00PERIOD" + Math.random() + "\x00";
+  function numeric(str) {
+    return parseInt(str, 10) == str ? parseInt(str, 10) : str.charCodeAt(0);
+  }
+  function escapeBraces(str) {
+    return str.split("\\\\").join(escSlash).split("\\{").join(escOpen).split("\\}").join(escClose).split("\\,").join(escComma).split("\\.").join(escPeriod);
+  }
+  function unescapeBraces(str) {
+    return str.split(escSlash).join("\\").split(escOpen).join("{").split(escClose).join("}").split(escComma).join(",").split(escPeriod).join(".");
+  }
+  function parseCommaParts(str) {
+    if (!str)
+      return [""];
+    var parts = [];
+    var m = balanced("{", "}", str);
+    if (!m)
+      return str.split(",");
+    var pre = m.pre;
+    var body = m.body;
+    var post = m.post;
+    var p = pre.split(",");
+    p[p.length - 1] += "{" + body + "}";
+    var postParts = parseCommaParts(post);
+    if (post.length) {
+      p[p.length - 1] += postParts.shift();
+      p.push.apply(p, postParts);
+    }
+    parts.push.apply(parts, p);
+    return parts;
+  }
+  function expandTop(str, options) {
+    if (!str)
+      return [];
+    options = options || {};
+    var max = options.max == null ? Infinity : options.max;
+    if (str.substr(0, 2) === "{}") {
+      str = "\\{\\}" + str.substr(2);
+    }
+    return expand(escapeBraces(str), max, true).map(unescapeBraces);
+  }
+  function embrace(str) {
+    return "{" + str + "}";
+  }
+  function isPadded(el) {
+    return /^-?0\d/.test(el);
+  }
+  function lte(i, y) {
+    return i <= y;
+  }
+  function gte(i, y) {
+    return i >= y;
+  }
+  function expand(str, max, isTop) {
+    var expansions = [];
+    var m = balanced("{", "}", str);
+    if (!m || /\$$/.test(m.pre))
+      return [str];
+    var isNumericSequence = /^-?\d+\.\.-?\d+(?:\.\.-?\d+)?$/.test(m.body);
+    var isAlphaSequence = /^[a-zA-Z]\.\.[a-zA-Z](?:\.\.-?\d+)?$/.test(m.body);
+    var isSequence = isNumericSequence || isAlphaSequence;
+    var isOptions = m.body.indexOf(",") >= 0;
+    if (!isSequence && !isOptions) {
+      if (m.post.match(/,(?!,).*\}/)) {
+        str = m.pre + "{" + m.body + escClose + m.post;
+        return expand(str, max, true);
+      }
+      return [str];
+    }
+    var n;
+    if (isSequence) {
+      n = m.body.split(/\.\./);
+    } else {
+      n = parseCommaParts(m.body);
+      if (n.length === 1) {
+        n = expand(n[0], max, false).map(embrace);
+        if (n.length === 1) {
+          var post = m.post.length ? expand(m.post, max, false) : [""];
+          return post.map(function(p) {
+            return m.pre + n[0] + p;
+          });
+        }
+      }
+    }
+    var pre = m.pre;
+    var post = m.post.length ? expand(m.post, max, false) : [""];
+    var N;
+    if (isSequence) {
+      var x = numeric(n[0]);
+      var y = numeric(n[1]);
+      var width = Math.max(n[0].length, n[1].length);
+      var incr = n.length == 3 ? Math.max(Math.abs(numeric(n[2])), 1) : 1;
+      var test = lte;
+      var reverse = y < x;
+      if (reverse) {
+        incr *= -1;
+        test = gte;
+      }
+      var pad = n.some(isPadded);
+      N = [];
+      for (var i = x;test(i, y); i += incr) {
+        var c;
+        if (isAlphaSequence) {
+          c = String.fromCharCode(i);
+          if (c === "\\")
+            c = "";
+        } else {
+          c = String(i);
+          if (pad) {
+            var need = width - c.length;
+            if (need > 0) {
+              var z = new Array(need + 1).join("0");
+              if (i < 0)
+                c = "-" + z + c.slice(1);
+              else
+                c = z + c;
+            }
+          }
+        }
+        N.push(c);
+      }
+    } else {
+      N = concatMap(n, function(el) {
+        return expand(el, max, false);
+      });
+    }
+    for (var j = 0;j < N.length; j++) {
+      for (var k = 0;k < post.length && expansions.length < max; k++) {
+        var expansion = pre + N[j] + post[k];
+        if (!isTop || isSequence || expansion)
+          expansions.push(expansion);
+      }
+    }
+    return expansions;
+  }
+});
+
+// node_modules/minimatch/minimatch.js
+var require_minimatch = __commonJS((exports, module) => {
+  module.exports = minimatch;
+  minimatch.Minimatch = Minimatch;
+  var path = function() {
+    try {
+      return __require("path");
+    } catch (e) {}
+  }() || {
+    sep: "/"
+  };
+  minimatch.sep = path.sep;
+  var GLOBSTAR = minimatch.GLOBSTAR = Minimatch.GLOBSTAR = {};
+  var expand = require_brace_expansion();
+  var plTypes = {
+    "!": { open: "(?:(?!(?:", close: "))[^/]*?)" },
+    "?": { open: "(?:", close: ")?" },
+    "+": { open: "(?:", close: ")+" },
+    "*": { open: "(?:", close: ")*" },
+    "@": { open: "(?:", close: ")" }
+  };
+  var qmark = "[^/]";
+  var star = qmark + "*?";
+  var twoStarDot = "(?:(?!(?:\\/|^)(?:\\.{1,2})($|\\/)).)*?";
+  var twoStarNoDot = "(?:(?!(?:\\/|^)\\.).)*?";
+  var reSpecials = charSet("().*{}+?[]^$\\!");
+  function charSet(s) {
+    return s.split("").reduce(function(set, c) {
+      set[c] = true;
+      return set;
+    }, {});
+  }
+  var slashSplit = /\/+/;
+  minimatch.filter = filter;
+  function filter(pattern, options) {
+    options = options || {};
+    return function(p, i, list) {
+      return minimatch(p, pattern, options);
+    };
+  }
+  function ext(a, b) {
+    b = b || {};
+    var t = {};
+    Object.keys(a).forEach(function(k) {
+      t[k] = a[k];
+    });
+    Object.keys(b).forEach(function(k) {
+      t[k] = b[k];
+    });
+    return t;
+  }
+  minimatch.defaults = function(def) {
+    if (!def || typeof def !== "object" || !Object.keys(def).length) {
+      return minimatch;
+    }
+    var orig = minimatch;
+    var m = function minimatch2(p, pattern, options) {
+      return orig(p, pattern, ext(def, options));
+    };
+    m.Minimatch = function Minimatch2(pattern, options) {
+      return new orig.Minimatch(pattern, ext(def, options));
+    };
+    m.Minimatch.defaults = function defaults(options) {
+      return orig.defaults(ext(def, options)).Minimatch;
+    };
+    m.filter = function filter2(pattern, options) {
+      return orig.filter(pattern, ext(def, options));
+    };
+    m.defaults = function defaults(options) {
+      return orig.defaults(ext(def, options));
+    };
+    m.makeRe = function makeRe2(pattern, options) {
+      return orig.makeRe(pattern, ext(def, options));
+    };
+    m.braceExpand = function braceExpand2(pattern, options) {
+      return orig.braceExpand(pattern, ext(def, options));
+    };
+    m.match = function(list, pattern, options) {
+      return orig.match(list, pattern, ext(def, options));
+    };
+    return m;
+  };
+  Minimatch.defaults = function(def) {
+    return minimatch.defaults(def).Minimatch;
+  };
+  function minimatch(p, pattern, options) {
+    assertValidPattern(pattern);
+    if (!options)
+      options = {};
+    if (!options.nocomment && pattern.charAt(0) === "#") {
+      return false;
+    }
+    return new Minimatch(pattern, options).match(p);
+  }
+  function Minimatch(pattern, options) {
+    if (!(this instanceof Minimatch)) {
+      return new Minimatch(pattern, options);
+    }
+    assertValidPattern(pattern);
+    if (!options)
+      options = {};
+    pattern = pattern.trim();
+    if (!options.allowWindowsEscape && path.sep !== "/") {
+      pattern = pattern.split(path.sep).join("/");
+    }
+    this.options = options;
+    this.maxGlobstarRecursion = options.maxGlobstarRecursion !== undefined ? options.maxGlobstarRecursion : 200;
+    this.set = [];
+    this.pattern = pattern;
+    this.regexp = null;
+    this.negate = false;
+    this.comment = false;
+    this.empty = false;
+    this.partial = !!options.partial;
+    this.make();
+  }
+  Minimatch.prototype.debug = function() {};
+  Minimatch.prototype.make = make;
+  function make() {
+    var pattern = this.pattern;
+    var options = this.options;
+    if (!options.nocomment && pattern.charAt(0) === "#") {
+      this.comment = true;
+      return;
+    }
+    if (!pattern) {
+      this.empty = true;
+      return;
+    }
+    this.parseNegate();
+    var set = this.globSet = this.braceExpand();
+    if (options.debug)
+      this.debug = function debug() {
+        console.error.apply(console, arguments);
+      };
+    this.debug(this.pattern, set);
+    set = this.globParts = set.map(function(s) {
+      return s.split(slashSplit);
+    });
+    this.debug(this.pattern, set);
+    set = set.map(function(s, si, set2) {
+      return s.map(this.parse, this);
+    }, this);
+    this.debug(this.pattern, set);
+    set = set.filter(function(s) {
+      return s.indexOf(false) === -1;
+    });
+    this.debug(this.pattern, set);
+    this.set = set;
+  }
+  Minimatch.prototype.parseNegate = parseNegate;
+  function parseNegate() {
+    var pattern = this.pattern;
+    var negate = false;
+    var options = this.options;
+    var negateOffset = 0;
+    if (options.nonegate)
+      return;
+    for (var i = 0, l = pattern.length;i < l && pattern.charAt(i) === "!"; i++) {
+      negate = !negate;
+      negateOffset++;
+    }
+    if (negateOffset)
+      this.pattern = pattern.substr(negateOffset);
+    this.negate = negate;
+  }
+  minimatch.braceExpand = function(pattern, options) {
+    return braceExpand(pattern, options);
+  };
+  Minimatch.prototype.braceExpand = braceExpand;
+  function braceExpand(pattern, options) {
+    if (!options) {
+      if (this instanceof Minimatch) {
+        options = this.options;
+      } else {
+        options = {};
+      }
+    }
+    pattern = typeof pattern === "undefined" ? this.pattern : pattern;
+    assertValidPattern(pattern);
+    if (options.nobrace || !/\{(?:(?!\{).)*\}/.test(pattern)) {
+      return [pattern];
+    }
+    return expand(pattern);
+  }
+  var MAX_PATTERN_LENGTH = 1024 * 64;
+  var assertValidPattern = function(pattern) {
+    if (typeof pattern !== "string") {
+      throw new TypeError("invalid pattern");
+    }
+    if (pattern.length > MAX_PATTERN_LENGTH) {
+      throw new TypeError("pattern is too long");
+    }
+  };
+  Minimatch.prototype.parse = parse;
+  var SUBPARSE = {};
+  function parse(pattern, isSub) {
+    assertValidPattern(pattern);
+    var options = this.options;
+    if (pattern === "**") {
+      if (!options.noglobstar)
+        return GLOBSTAR;
+      else
+        pattern = "*";
+    }
+    if (pattern === "")
+      return "";
+    var re = "";
+    var hasMagic = !!options.nocase;
+    var escaping = false;
+    var patternListStack = [];
+    var negativeLists = [];
+    var stateChar;
+    var inClass = false;
+    var reClassStart = -1;
+    var classStart = -1;
+    var patternStart = pattern.charAt(0) === "." ? "" : options.dot ? "(?!(?:^|\\/)\\.{1,2}(?:$|\\/))" : "(?!\\.)";
+    var self = this;
+    function clearStateChar() {
+      if (stateChar) {
+        switch (stateChar) {
+          case "*":
+            re += star;
+            hasMagic = true;
+            break;
+          case "?":
+            re += qmark;
+            hasMagic = true;
+            break;
+          default:
+            re += "\\" + stateChar;
+            break;
+        }
+        self.debug("clearStateChar %j %j", stateChar, re);
+        stateChar = false;
+      }
+    }
+    for (var i = 0, len = pattern.length, c;i < len && (c = pattern.charAt(i)); i++) {
+      this.debug("%s\t%s %s %j", pattern, i, re, c);
+      if (escaping && reSpecials[c]) {
+        re += "\\" + c;
+        escaping = false;
+        continue;
+      }
+      switch (c) {
+        case "/": {
+          return false;
+        }
+        case "\\":
+          clearStateChar();
+          escaping = true;
+          continue;
+        case "?":
+        case "*":
+        case "+":
+        case "@":
+        case "!":
+          this.debug("%s\t%s %s %j <-- stateChar", pattern, i, re, c);
+          if (inClass) {
+            this.debug("  in class");
+            if (c === "!" && i === classStart + 1)
+              c = "^";
+            re += c;
+            continue;
+          }
+          if (c === "*" && stateChar === "*")
+            continue;
+          self.debug("call clearStateChar %j", stateChar);
+          clearStateChar();
+          stateChar = c;
+          if (options.noext)
+            clearStateChar();
+          continue;
+        case "(":
+          if (inClass) {
+            re += "(";
+            continue;
+          }
+          if (!stateChar) {
+            re += "\\(";
+            continue;
+          }
+          patternListStack.push({
+            type: stateChar,
+            start: i - 1,
+            reStart: re.length,
+            open: plTypes[stateChar].open,
+            close: plTypes[stateChar].close
+          });
+          re += stateChar === "!" ? "(?:(?!(?:" : "(?:";
+          this.debug("plType %j %j", stateChar, re);
+          stateChar = false;
+          continue;
+        case ")":
+          if (inClass || !patternListStack.length) {
+            re += "\\)";
+            continue;
+          }
+          clearStateChar();
+          hasMagic = true;
+          var pl = patternListStack.pop();
+          re += pl.close;
+          if (pl.type === "!") {
+            negativeLists.push(pl);
+          }
+          pl.reEnd = re.length;
+          continue;
+        case "|":
+          if (inClass || !patternListStack.length || escaping) {
+            re += "\\|";
+            escaping = false;
+            continue;
+          }
+          clearStateChar();
+          re += "|";
+          continue;
+        case "[":
+          clearStateChar();
+          if (inClass) {
+            re += "\\" + c;
+            continue;
+          }
+          inClass = true;
+          classStart = i;
+          reClassStart = re.length;
+          re += c;
+          continue;
+        case "]":
+          if (i === classStart + 1 || !inClass) {
+            re += "\\" + c;
+            escaping = false;
+            continue;
+          }
+          var cs = pattern.substring(classStart + 1, i);
+          try {
+            RegExp("[" + cs + "]");
+          } catch (er) {
+            var sp = this.parse(cs, SUBPARSE);
+            re = re.substr(0, reClassStart) + "\\[" + sp[0] + "\\]";
+            hasMagic = hasMagic || sp[1];
+            inClass = false;
+            continue;
+          }
+          hasMagic = true;
+          inClass = false;
+          re += c;
+          continue;
+        default:
+          clearStateChar();
+          if (escaping) {
+            escaping = false;
+          } else if (reSpecials[c] && !(c === "^" && inClass)) {
+            re += "\\";
+          }
+          re += c;
+      }
+    }
+    if (inClass) {
+      cs = pattern.substr(classStart + 1);
+      sp = this.parse(cs, SUBPARSE);
+      re = re.substr(0, reClassStart) + "\\[" + sp[0];
+      hasMagic = hasMagic || sp[1];
+    }
+    for (pl = patternListStack.pop();pl; pl = patternListStack.pop()) {
+      var tail = re.slice(pl.reStart + pl.open.length);
+      this.debug("setting tail", re, pl);
+      tail = tail.replace(/((?:\\{2}){0,64})(\\?)\|/g, function(_, $1, $2) {
+        if (!$2) {
+          $2 = "\\";
+        }
+        return $1 + $1 + $2 + "|";
+      });
+      this.debug(`tail=%j
+   %s`, tail, tail, pl, re);
+      var t = pl.type === "*" ? star : pl.type === "?" ? qmark : "\\" + pl.type;
+      hasMagic = true;
+      re = re.slice(0, pl.reStart) + t + "\\(" + tail;
+    }
+    clearStateChar();
+    if (escaping) {
+      re += "\\\\";
+    }
+    var addPatternStart = false;
+    switch (re.charAt(0)) {
+      case "[":
+      case ".":
+      case "(":
+        addPatternStart = true;
+    }
+    for (var n = negativeLists.length - 1;n > -1; n--) {
+      var nl = negativeLists[n];
+      var nlBefore = re.slice(0, nl.reStart);
+      var nlFirst = re.slice(nl.reStart, nl.reEnd - 8);
+      var nlLast = re.slice(nl.reEnd - 8, nl.reEnd);
+      var nlAfter = re.slice(nl.reEnd);
+      nlLast += nlAfter;
+      var openParensBefore = nlBefore.split("(").length - 1;
+      var cleanAfter = nlAfter;
+      for (i = 0;i < openParensBefore; i++) {
+        cleanAfter = cleanAfter.replace(/\)[+*?]?/, "");
+      }
+      nlAfter = cleanAfter;
+      var dollar = "";
+      if (nlAfter === "" && isSub !== SUBPARSE) {
+        dollar = "$";
+      }
+      var newRe = nlBefore + nlFirst + nlAfter + dollar + nlLast;
+      re = newRe;
+    }
+    if (re !== "" && hasMagic) {
+      re = "(?=.)" + re;
+    }
+    if (addPatternStart) {
+      re = patternStart + re;
+    }
+    if (isSub === SUBPARSE) {
+      return [re, hasMagic];
+    }
+    if (!hasMagic) {
+      return globUnescape(pattern);
+    }
+    var flags = options.nocase ? "i" : "";
+    try {
+      var regExp = new RegExp("^" + re + "$", flags);
+    } catch (er) {
+      return new RegExp("$.");
+    }
+    regExp._glob = pattern;
+    regExp._src = re;
+    return regExp;
+  }
+  minimatch.makeRe = function(pattern, options) {
+    return new Minimatch(pattern, options || {}).makeRe();
+  };
+  Minimatch.prototype.makeRe = makeRe;
+  function makeRe() {
+    if (this.regexp || this.regexp === false)
+      return this.regexp;
+    var set = this.set;
+    if (!set.length) {
+      this.regexp = false;
+      return this.regexp;
+    }
+    var options = this.options;
+    var twoStar = options.noglobstar ? star : options.dot ? twoStarDot : twoStarNoDot;
+    var flags = options.nocase ? "i" : "";
+    var re = set.map(function(pattern) {
+      return pattern.map(function(p) {
+        return p === GLOBSTAR ? twoStar : typeof p === "string" ? regExpEscape(p) : p._src;
+      }).join("\\/");
+    }).join("|");
+    re = "^(?:" + re + ")$";
+    if (this.negate)
+      re = "^(?!" + re + ").*$";
+    try {
+      this.regexp = new RegExp(re, flags);
+    } catch (ex) {
+      this.regexp = false;
+    }
+    return this.regexp;
+  }
+  minimatch.match = function(list, pattern, options) {
+    options = options || {};
+    var mm = new Minimatch(pattern, options);
+    list = list.filter(function(f) {
+      return mm.match(f);
+    });
+    if (mm.options.nonull && !list.length) {
+      list.push(pattern);
+    }
+    return list;
+  };
+  Minimatch.prototype.match = function match(f, partial) {
+    if (typeof partial === "undefined")
+      partial = this.partial;
+    this.debug("match", f, this.pattern);
+    if (this.comment)
+      return false;
+    if (this.empty)
+      return f === "";
+    if (f === "/" && partial)
+      return true;
+    var options = this.options;
+    if (path.sep !== "/") {
+      f = f.split(path.sep).join("/");
+    }
+    f = f.split(slashSplit);
+    this.debug(this.pattern, "split", f);
+    var set = this.set;
+    this.debug(this.pattern, "set", set);
+    var filename;
+    var i;
+    for (i = f.length - 1;i >= 0; i--) {
+      filename = f[i];
+      if (filename)
+        break;
+    }
+    for (i = 0;i < set.length; i++) {
+      var pattern = set[i];
+      var file = f;
+      if (options.matchBase && pattern.length === 1) {
+        file = [filename];
+      }
+      var hit = this.matchOne(file, pattern, partial);
+      if (hit) {
+        if (options.flipNegate)
+          return true;
+        return !this.negate;
+      }
+    }
+    if (options.flipNegate)
+      return false;
+    return this.negate;
+  };
+  Minimatch.prototype.matchOne = function(file, pattern, partial) {
+    if (pattern.indexOf(GLOBSTAR) !== -1) {
+      return this._matchGlobstar(file, pattern, partial, 0, 0);
+    }
+    return this._matchOne(file, pattern, partial, 0, 0);
+  };
+  Minimatch.prototype._matchGlobstar = function(file, pattern, partial, fileIndex, patternIndex) {
+    var i;
+    var firstgs = -1;
+    for (i = patternIndex;i < pattern.length; i++) {
+      if (pattern[i] === GLOBSTAR) {
+        firstgs = i;
+        break;
+      }
+    }
+    var lastgs = -1;
+    for (i = pattern.length - 1;i >= 0; i--) {
+      if (pattern[i] === GLOBSTAR) {
+        lastgs = i;
+        break;
+      }
+    }
+    var head = pattern.slice(patternIndex, firstgs);
+    var body = partial ? pattern.slice(firstgs + 1) : pattern.slice(firstgs + 1, lastgs);
+    var tail = partial ? [] : pattern.slice(lastgs + 1);
+    if (head.length) {
+      var fileHead = file.slice(fileIndex, fileIndex + head.length);
+      if (!this._matchOne(fileHead, head, partial, 0, 0)) {
+        return false;
+      }
+      fileIndex += head.length;
+    }
+    var fileTailMatch = 0;
+    if (tail.length) {
+      if (tail.length + fileIndex > file.length)
+        return false;
+      var tailStart = file.length - tail.length;
+      if (this._matchOne(file, tail, partial, tailStart, 0)) {
+        fileTailMatch = tail.length;
+      } else {
+        if (file[file.length - 1] !== "" || fileIndex + tail.length === file.length) {
+          return false;
+        }
+        tailStart--;
+        if (!this._matchOne(file, tail, partial, tailStart, 0)) {
+          return false;
+        }
+        fileTailMatch = tail.length + 1;
+      }
+    }
+    if (!body.length) {
+      var sawSome = !!fileTailMatch;
+      for (i = fileIndex;i < file.length - fileTailMatch; i++) {
+        var f = String(file[i]);
+        sawSome = true;
+        if (f === "." || f === ".." || !this.options.dot && f.charAt(0) === ".") {
+          return false;
+        }
+      }
+      return partial || sawSome;
+    }
+    var bodySegments = [[[], 0]];
+    var currentBody = bodySegments[0];
+    var nonGsParts = 0;
+    var nonGsPartsSums = [0];
+    for (var bi = 0;bi < body.length; bi++) {
+      var b = body[bi];
+      if (b === GLOBSTAR) {
+        nonGsPartsSums.push(nonGsParts);
+        currentBody = [[], 0];
+        bodySegments.push(currentBody);
+      } else {
+        currentBody[0].push(b);
+        nonGsParts++;
+      }
+    }
+    var idx = bodySegments.length - 1;
+    var fileLength = file.length - fileTailMatch;
+    for (var si = 0;si < bodySegments.length; si++) {
+      bodySegments[si][1] = fileLength - (nonGsPartsSums[idx--] + bodySegments[si][0].length);
+    }
+    return !!this._matchGlobStarBodySections(file, bodySegments, fileIndex, 0, partial, 0, !!fileTailMatch);
+  };
+  Minimatch.prototype._matchGlobStarBodySections = function(file, bodySegments, fileIndex, bodyIndex, partial, globStarDepth, sawTail) {
+    var bs = bodySegments[bodyIndex];
+    if (!bs) {
+      for (var i = fileIndex;i < file.length; i++) {
+        sawTail = true;
+        var f = file[i];
+        if (f === "." || f === ".." || !this.options.dot && f.charAt(0) === ".") {
+          return false;
+        }
+      }
+      return sawTail;
+    }
+    var body = bs[0];
+    var after = bs[1];
+    while (fileIndex <= after) {
+      var m = this._matchOne(file.slice(0, fileIndex + body.length), body, partial, fileIndex, 0);
+      if (m && globStarDepth < this.maxGlobstarRecursion) {
+        var sub = this._matchGlobStarBodySections(file, bodySegments, fileIndex + body.length, bodyIndex + 1, partial, globStarDepth + 1, sawTail);
+        if (sub !== false) {
+          return sub;
+        }
+      }
+      var f = file[fileIndex];
+      if (f === "." || f === ".." || !this.options.dot && f.charAt(0) === ".") {
+        return false;
+      }
+      fileIndex++;
+    }
+    return partial || null;
+  };
+  Minimatch.prototype._matchOne = function(file, pattern, partial, fileIndex, patternIndex) {
+    var fi, pi, fl, pl;
+    for (fi = fileIndex, pi = patternIndex, fl = file.length, pl = pattern.length;fi < fl && pi < pl; fi++, pi++) {
+      this.debug("matchOne loop");
+      var p = pattern[pi];
+      var f = file[fi];
+      this.debug(pattern, p, f);
+      if (p === false || p === GLOBSTAR)
+        return false;
+      var hit;
+      if (typeof p === "string") {
+        hit = f === p;
+        this.debug("string match", p, f, hit);
+      } else {
+        hit = f.match(p);
+        this.debug("pattern match", p, f, hit);
+      }
+      if (!hit)
+        return false;
+    }
+    if (fi === fl && pi === pl) {
+      return true;
+    } else if (fi === fl) {
+      return partial;
+    } else if (pi === pl) {
+      return fi === fl - 1 && file[fi] === "";
+    }
+    throw new Error("wtf?");
+  };
+  function globUnescape(s) {
+    return s.replace(/\\(.)/g, "$1");
+  }
+  function regExpEscape(s) {
+    return s.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+  }
+});
+
+// node_modules/inherits/inherits_browser.js
+var require_inherits_browser = __commonJS((exports, module) => {
+  if (typeof Object.create === "function") {
+    module.exports = function inherits(ctor, superCtor) {
+      if (superCtor) {
+        ctor.super_ = superCtor;
+        ctor.prototype = Object.create(superCtor.prototype, {
+          constructor: {
+            value: ctor,
+            enumerable: false,
+            writable: true,
+            configurable: true
+          }
+        });
+      }
+    };
+  } else {
+    module.exports = function inherits(ctor, superCtor) {
+      if (superCtor) {
+        ctor.super_ = superCtor;
+        var TempCtor = function() {};
+        TempCtor.prototype = superCtor.prototype;
+        ctor.prototype = new TempCtor;
+        ctor.prototype.constructor = ctor;
+      }
+    };
+  }
+});
+
+// node_modules/inherits/inherits.js
+var require_inherits = __commonJS((exports, module) => {
+  try {
+    util = __require("util");
+    if (typeof util.inherits !== "function")
+      throw "";
+    module.exports = util.inherits;
+  } catch (e) {
+    module.exports = require_inherits_browser();
+  }
+  var util;
+});
+
+// node_modules/path-is-absolute/index.js
+var require_path_is_absolute = __commonJS((exports, module) => {
+  function posix(path) {
+    return path.charAt(0) === "/";
+  }
+  function win32(path) {
+    var splitDeviceRe = /^([a-zA-Z]:|[\\\/]{2}[^\\\/]+[\\\/]+[^\\\/]+)?([\\\/])?([\s\S]*?)$/;
+    var result = splitDeviceRe.exec(path);
+    var device = result[1] || "";
+    var isUnc = Boolean(device && device.charAt(1) !== ":");
+    return Boolean(result[2] || isUnc);
+  }
+  module.exports = process.platform === "win32" ? win32 : posix;
+  module.exports.posix = posix;
+  module.exports.win32 = win32;
+});
+
+// node_modules/glob/common.js
+var require_common = __commonJS((exports) => {
+  exports.setopts = setopts;
+  exports.ownProp = ownProp;
+  exports.makeAbs = makeAbs;
+  exports.finish = finish;
+  exports.mark = mark;
+  exports.isIgnored = isIgnored;
+  exports.childrenIgnored = childrenIgnored;
+  function ownProp(obj, field) {
+    return Object.prototype.hasOwnProperty.call(obj, field);
+  }
+  var fs = __require("fs");
+  var path = __require("path");
+  var minimatch = require_minimatch();
+  var isAbsolute = require_path_is_absolute();
+  var Minimatch = minimatch.Minimatch;
+  function alphasort(a, b) {
+    return a.localeCompare(b, "en");
+  }
+  function setupIgnores(self, options) {
+    self.ignore = options.ignore || [];
+    if (!Array.isArray(self.ignore))
+      self.ignore = [self.ignore];
+    if (self.ignore.length) {
+      self.ignore = self.ignore.map(ignoreMap);
+    }
+  }
+  function ignoreMap(pattern) {
+    var gmatcher = null;
+    if (pattern.slice(-3) === "/**") {
+      var gpattern = pattern.replace(/(\/\*\*)+$/, "");
+      gmatcher = new Minimatch(gpattern, { dot: true });
+    }
+    return {
+      matcher: new Minimatch(pattern, { dot: true }),
+      gmatcher
+    };
+  }
+  function setopts(self, pattern, options) {
+    if (!options)
+      options = {};
+    if (options.matchBase && pattern.indexOf("/") === -1) {
+      if (options.noglobstar) {
+        throw new Error("base matching requires globstar");
+      }
+      pattern = "**/" + pattern;
+    }
+    self.silent = !!options.silent;
+    self.pattern = pattern;
+    self.strict = options.strict !== false;
+    self.realpath = !!options.realpath;
+    self.realpathCache = options.realpathCache || Object.create(null);
+    self.follow = !!options.follow;
+    self.dot = !!options.dot;
+    self.mark = !!options.mark;
+    self.nodir = !!options.nodir;
+    if (self.nodir)
+      self.mark = true;
+    self.sync = !!options.sync;
+    self.nounique = !!options.nounique;
+    self.nonull = !!options.nonull;
+    self.nosort = !!options.nosort;
+    self.nocase = !!options.nocase;
+    self.stat = !!options.stat;
+    self.noprocess = !!options.noprocess;
+    self.absolute = !!options.absolute;
+    self.fs = options.fs || fs;
+    self.maxLength = options.maxLength || Infinity;
+    self.cache = options.cache || Object.create(null);
+    self.statCache = options.statCache || Object.create(null);
+    self.symlinks = options.symlinks || Object.create(null);
+    setupIgnores(self, options);
+    self.changedCwd = false;
+    var cwd = process.cwd();
+    if (!ownProp(options, "cwd"))
+      self.cwd = cwd;
+    else {
+      self.cwd = path.resolve(options.cwd);
+      self.changedCwd = self.cwd !== cwd;
+    }
+    self.root = options.root || path.resolve(self.cwd, "/");
+    self.root = path.resolve(self.root);
+    if (process.platform === "win32")
+      self.root = self.root.replace(/\\/g, "/");
+    self.cwdAbs = isAbsolute(self.cwd) ? self.cwd : makeAbs(self, self.cwd);
+    if (process.platform === "win32")
+      self.cwdAbs = self.cwdAbs.replace(/\\/g, "/");
+    self.nomount = !!options.nomount;
+    options.nonegate = true;
+    options.nocomment = true;
+    options.allowWindowsEscape = false;
+    self.minimatch = new Minimatch(pattern, options);
+    self.options = self.minimatch.options;
+  }
+  function finish(self) {
+    var nou = self.nounique;
+    var all = nou ? [] : Object.create(null);
+    for (var i = 0, l = self.matches.length;i < l; i++) {
+      var matches = self.matches[i];
+      if (!matches || Object.keys(matches).length === 0) {
+        if (self.nonull) {
+          var literal = self.minimatch.globSet[i];
+          if (nou)
+            all.push(literal);
+          else
+            all[literal] = true;
+        }
+      } else {
+        var m = Object.keys(matches);
+        if (nou)
+          all.push.apply(all, m);
+        else
+          m.forEach(function(m2) {
+            all[m2] = true;
+          });
+      }
+    }
+    if (!nou)
+      all = Object.keys(all);
+    if (!self.nosort)
+      all = all.sort(alphasort);
+    if (self.mark) {
+      for (var i = 0;i < all.length; i++) {
+        all[i] = self._mark(all[i]);
+      }
+      if (self.nodir) {
+        all = all.filter(function(e) {
+          var notDir = !/\/$/.test(e);
+          var c = self.cache[e] || self.cache[makeAbs(self, e)];
+          if (notDir && c)
+            notDir = c !== "DIR" && !Array.isArray(c);
+          return notDir;
+        });
+      }
+    }
+    if (self.ignore.length)
+      all = all.filter(function(m2) {
+        return !isIgnored(self, m2);
+      });
+    self.found = all;
+  }
+  function mark(self, p) {
+    var abs = makeAbs(self, p);
+    var c = self.cache[abs];
+    var m = p;
+    if (c) {
+      var isDir = c === "DIR" || Array.isArray(c);
+      var slash = p.slice(-1) === "/";
+      if (isDir && !slash)
+        m += "/";
+      else if (!isDir && slash)
+        m = m.slice(0, -1);
+      if (m !== p) {
+        var mabs = makeAbs(self, m);
+        self.statCache[mabs] = self.statCache[abs];
+        self.cache[mabs] = self.cache[abs];
+      }
+    }
+    return m;
+  }
+  function makeAbs(self, f) {
+    var abs = f;
+    if (f.charAt(0) === "/") {
+      abs = path.join(self.root, f);
+    } else if (isAbsolute(f) || f === "") {
+      abs = f;
+    } else if (self.changedCwd) {
+      abs = path.resolve(self.cwd, f);
+    } else {
+      abs = path.resolve(f);
+    }
+    if (process.platform === "win32")
+      abs = abs.replace(/\\/g, "/");
+    return abs;
+  }
+  function isIgnored(self, path2) {
+    if (!self.ignore.length)
+      return false;
+    return self.ignore.some(function(item) {
+      return item.matcher.match(path2) || !!(item.gmatcher && item.gmatcher.match(path2));
+    });
+  }
+  function childrenIgnored(self, path2) {
+    if (!self.ignore.length)
+      return false;
+    return self.ignore.some(function(item) {
+      return !!(item.gmatcher && item.gmatcher.match(path2));
+    });
+  }
+});
+
+// node_modules/glob/sync.js
+var require_sync = __commonJS((exports, module) => {
+  module.exports = globSync;
+  globSync.GlobSync = GlobSync;
+  var rp = require_fs();
+  var minimatch = require_minimatch();
+  var Minimatch = minimatch.Minimatch;
+  var Glob = require_glob().Glob;
+  var util = __require("util");
+  var path = __require("path");
+  var assert = __require("assert");
+  var isAbsolute = require_path_is_absolute();
+  var common = require_common();
+  var setopts = common.setopts;
+  var ownProp = common.ownProp;
+  var childrenIgnored = common.childrenIgnored;
+  var isIgnored = common.isIgnored;
+  function globSync(pattern, options) {
+    if (typeof options === "function" || arguments.length === 3)
+      throw new TypeError(`callback provided to sync glob
+` + "See: https://github.com/isaacs/node-glob/issues/167");
+    return new GlobSync(pattern, options).found;
+  }
+  function GlobSync(pattern, options) {
+    if (!pattern)
+      throw new Error("must provide pattern");
+    if (typeof options === "function" || arguments.length === 3)
+      throw new TypeError(`callback provided to sync glob
+` + "See: https://github.com/isaacs/node-glob/issues/167");
+    if (!(this instanceof GlobSync))
+      return new GlobSync(pattern, options);
+    setopts(this, pattern, options);
+    if (this.noprocess)
+      return this;
+    var n = this.minimatch.set.length;
+    this.matches = new Array(n);
+    for (var i = 0;i < n; i++) {
+      this._process(this.minimatch.set[i], i, false);
+    }
+    this._finish();
+  }
+  GlobSync.prototype._finish = function() {
+    assert.ok(this instanceof GlobSync);
+    if (this.realpath) {
+      var self = this;
+      this.matches.forEach(function(matchset, index) {
+        var set = self.matches[index] = Object.create(null);
+        for (var p in matchset) {
+          try {
+            p = self._makeAbs(p);
+            var real = rp.realpathSync(p, self.realpathCache);
+            set[real] = true;
+          } catch (er) {
+            if (er.syscall === "stat")
+              set[self._makeAbs(p)] = true;
+            else
+              throw er;
+          }
+        }
+      });
+    }
+    common.finish(this);
+  };
+  GlobSync.prototype._process = function(pattern, index, inGlobStar) {
+    assert.ok(this instanceof GlobSync);
+    var n = 0;
+    while (typeof pattern[n] === "string") {
+      n++;
+    }
+    var prefix;
+    switch (n) {
+      case pattern.length:
+        this._processSimple(pattern.join("/"), index);
+        return;
+      case 0:
+        prefix = null;
+        break;
+      default:
+        prefix = pattern.slice(0, n).join("/");
+        break;
+    }
+    var remain = pattern.slice(n);
+    var read;
+    if (prefix === null)
+      read = ".";
+    else if (isAbsolute(prefix) || isAbsolute(pattern.map(function(p) {
+      return typeof p === "string" ? p : "[*]";
+    }).join("/"))) {
+      if (!prefix || !isAbsolute(prefix))
+        prefix = "/" + prefix;
+      read = prefix;
+    } else
+      read = prefix;
+    var abs = this._makeAbs(read);
+    if (childrenIgnored(this, read))
+      return;
+    var isGlobStar = remain[0] === minimatch.GLOBSTAR;
+    if (isGlobStar)
+      this._processGlobStar(prefix, read, abs, remain, index, inGlobStar);
+    else
+      this._processReaddir(prefix, read, abs, remain, index, inGlobStar);
+  };
+  GlobSync.prototype._processReaddir = function(prefix, read, abs, remain, index, inGlobStar) {
+    var entries = this._readdir(abs, inGlobStar);
+    if (!entries)
+      return;
+    var pn = remain[0];
+    var negate = !!this.minimatch.negate;
+    var rawGlob = pn._glob;
+    var dotOk = this.dot || rawGlob.charAt(0) === ".";
+    var matchedEntries = [];
+    for (var i = 0;i < entries.length; i++) {
+      var e = entries[i];
+      if (e.charAt(0) !== "." || dotOk) {
+        var m;
+        if (negate && !prefix) {
+          m = !e.match(pn);
+        } else {
+          m = e.match(pn);
+        }
+        if (m)
+          matchedEntries.push(e);
+      }
+    }
+    var len = matchedEntries.length;
+    if (len === 0)
+      return;
+    if (remain.length === 1 && !this.mark && !this.stat) {
+      if (!this.matches[index])
+        this.matches[index] = Object.create(null);
+      for (var i = 0;i < len; i++) {
+        var e = matchedEntries[i];
+        if (prefix) {
+          if (prefix.slice(-1) !== "/")
+            e = prefix + "/" + e;
+          else
+            e = prefix + e;
+        }
+        if (e.charAt(0) === "/" && !this.nomount) {
+          e = path.join(this.root, e);
+        }
+        this._emitMatch(index, e);
+      }
+      return;
+    }
+    remain.shift();
+    for (var i = 0;i < len; i++) {
+      var e = matchedEntries[i];
+      var newPattern;
+      if (prefix)
+        newPattern = [prefix, e];
+      else
+        newPattern = [e];
+      this._process(newPattern.concat(remain), index, inGlobStar);
+    }
+  };
+  GlobSync.prototype._emitMatch = function(index, e) {
+    if (isIgnored(this, e))
+      return;
+    var abs = this._makeAbs(e);
+    if (this.mark)
+      e = this._mark(e);
+    if (this.absolute) {
+      e = abs;
+    }
+    if (this.matches[index][e])
+      return;
+    if (this.nodir) {
+      var c = this.cache[abs];
+      if (c === "DIR" || Array.isArray(c))
+        return;
+    }
+    this.matches[index][e] = true;
+    if (this.stat)
+      this._stat(e);
+  };
+  GlobSync.prototype._readdirInGlobStar = function(abs) {
+    if (this.follow)
+      return this._readdir(abs, false);
+    var entries;
+    var lstat;
+    var stat;
+    try {
+      lstat = this.fs.lstatSync(abs);
+    } catch (er) {
+      if (er.code === "ENOENT") {
+        return null;
+      }
+    }
+    var isSym = lstat && lstat.isSymbolicLink();
+    this.symlinks[abs] = isSym;
+    if (!isSym && lstat && !lstat.isDirectory())
+      this.cache[abs] = "FILE";
+    else
+      entries = this._readdir(abs, false);
+    return entries;
+  };
+  GlobSync.prototype._readdir = function(abs, inGlobStar) {
+    var entries;
+    if (inGlobStar && !ownProp(this.symlinks, abs))
+      return this._readdirInGlobStar(abs);
+    if (ownProp(this.cache, abs)) {
+      var c = this.cache[abs];
+      if (!c || c === "FILE")
+        return null;
+      if (Array.isArray(c))
+        return c;
+    }
+    try {
+      return this._readdirEntries(abs, this.fs.readdirSync(abs));
+    } catch (er) {
+      this._readdirError(abs, er);
+      return null;
+    }
+  };
+  GlobSync.prototype._readdirEntries = function(abs, entries) {
+    if (!this.mark && !this.stat) {
+      for (var i = 0;i < entries.length; i++) {
+        var e = entries[i];
+        if (abs === "/")
+          e = abs + e;
+        else
+          e = abs + "/" + e;
+        this.cache[e] = true;
+      }
+    }
+    this.cache[abs] = entries;
+    return entries;
+  };
+  GlobSync.prototype._readdirError = function(f, er) {
+    switch (er.code) {
+      case "ENOTSUP":
+      case "ENOTDIR":
+        var abs = this._makeAbs(f);
+        this.cache[abs] = "FILE";
+        if (abs === this.cwdAbs) {
+          var error = new Error(er.code + " invalid cwd " + this.cwd);
+          error.path = this.cwd;
+          error.code = er.code;
+          throw error;
+        }
+        break;
+      case "ENOENT":
+      case "ELOOP":
+      case "ENAMETOOLONG":
+      case "UNKNOWN":
+        this.cache[this._makeAbs(f)] = false;
+        break;
+      default:
+        this.cache[this._makeAbs(f)] = false;
+        if (this.strict)
+          throw er;
+        if (!this.silent)
+          console.error("glob error", er);
+        break;
+    }
+  };
+  GlobSync.prototype._processGlobStar = function(prefix, read, abs, remain, index, inGlobStar) {
+    var entries = this._readdir(abs, inGlobStar);
+    if (!entries)
+      return;
+    var remainWithoutGlobStar = remain.slice(1);
+    var gspref = prefix ? [prefix] : [];
+    var noGlobStar = gspref.concat(remainWithoutGlobStar);
+    this._process(noGlobStar, index, false);
+    var len = entries.length;
+    var isSym = this.symlinks[abs];
+    if (isSym && inGlobStar)
+      return;
+    for (var i = 0;i < len; i++) {
+      var e = entries[i];
+      if (e.charAt(0) === "." && !this.dot)
+        continue;
+      var instead = gspref.concat(entries[i], remainWithoutGlobStar);
+      this._process(instead, index, true);
+      var below = gspref.concat(entries[i], remain);
+      this._process(below, index, true);
+    }
+  };
+  GlobSync.prototype._processSimple = function(prefix, index) {
+    var exists = this._stat(prefix);
+    if (!this.matches[index])
+      this.matches[index] = Object.create(null);
+    if (!exists)
+      return;
+    if (prefix && isAbsolute(prefix) && !this.nomount) {
+      var trail = /[\/\\]$/.test(prefix);
+      if (prefix.charAt(0) === "/") {
+        prefix = path.join(this.root, prefix);
+      } else {
+        prefix = path.resolve(this.root, prefix);
+        if (trail)
+          prefix += "/";
+      }
+    }
+    if (process.platform === "win32")
+      prefix = prefix.replace(/\\/g, "/");
+    this._emitMatch(index, prefix);
+  };
+  GlobSync.prototype._stat = function(f) {
+    var abs = this._makeAbs(f);
+    var needDir = f.slice(-1) === "/";
+    if (f.length > this.maxLength)
+      return false;
+    if (!this.stat && ownProp(this.cache, abs)) {
+      var c = this.cache[abs];
+      if (Array.isArray(c))
+        c = "DIR";
+      if (!needDir || c === "DIR")
+        return c;
+      if (needDir && c === "FILE")
+        return false;
+    }
+    var exists;
+    var stat = this.statCache[abs];
+    if (!stat) {
+      var lstat;
+      try {
+        lstat = this.fs.lstatSync(abs);
+      } catch (er) {
+        if (er && (er.code === "ENOENT" || er.code === "ENOTDIR")) {
+          this.statCache[abs] = false;
+          return false;
+        }
+      }
+      if (lstat && lstat.isSymbolicLink()) {
+        try {
+          stat = this.fs.statSync(abs);
+        } catch (er) {
+          stat = lstat;
+        }
+      } else {
+        stat = lstat;
+      }
+    }
+    this.statCache[abs] = stat;
+    var c = true;
+    if (stat)
+      c = stat.isDirectory() ? "DIR" : "FILE";
+    this.cache[abs] = this.cache[abs] || c;
+    if (needDir && c === "FILE")
+      return false;
+    return c;
+  };
+  GlobSync.prototype._mark = function(p) {
+    return common.mark(this, p);
+  };
+  GlobSync.prototype._makeAbs = function(f) {
+    return common.makeAbs(this, f);
+  };
+});
+
+// node_modules/inflight/inflight.js
+var require_inflight = __commonJS((exports, module) => {
+  var wrappy = require_wrappy();
+  var reqs = Object.create(null);
+  var once = require_once();
+  module.exports = wrappy(inflight);
+  function inflight(key, cb) {
+    if (reqs[key]) {
+      reqs[key].push(cb);
+      return null;
+    } else {
+      reqs[key] = [cb];
+      return makeres(key);
+    }
+  }
+  function makeres(key) {
+    return once(function RES() {
+      var cbs = reqs[key];
+      var len = cbs.length;
+      var args = slice(arguments);
+      try {
+        for (var i = 0;i < len; i++) {
+          cbs[i].apply(null, args);
+        }
+      } finally {
+        if (cbs.length > len) {
+          cbs.splice(0, len);
+          process.nextTick(function() {
+            RES.apply(null, args);
+          });
+        } else {
+          delete reqs[key];
+        }
+      }
+    });
+  }
+  function slice(args) {
+    var length = args.length;
+    var array = [];
+    for (var i = 0;i < length; i++)
+      array[i] = args[i];
+    return array;
+  }
+});
+
+// node_modules/glob/glob.js
+var require_glob = __commonJS((exports, module) => {
+  module.exports = glob;
+  var rp = require_fs();
+  var minimatch = require_minimatch();
+  var Minimatch = minimatch.Minimatch;
+  var inherits = require_inherits();
+  var EE = __require("events").EventEmitter;
+  var path = __require("path");
+  var assert = __require("assert");
+  var isAbsolute = require_path_is_absolute();
+  var globSync = require_sync();
+  var common = require_common();
+  var setopts = common.setopts;
+  var ownProp = common.ownProp;
+  var inflight = require_inflight();
+  var util = __require("util");
+  var childrenIgnored = common.childrenIgnored;
+  var isIgnored = common.isIgnored;
+  var once = require_once();
+  function glob(pattern, options, cb) {
+    if (typeof options === "function")
+      cb = options, options = {};
+    if (!options)
+      options = {};
+    if (options.sync) {
+      if (cb)
+        throw new TypeError("callback provided to sync glob");
+      return globSync(pattern, options);
+    }
+    return new Glob(pattern, options, cb);
+  }
+  glob.sync = globSync;
+  var GlobSync = glob.GlobSync = globSync.GlobSync;
+  glob.glob = glob;
+  function extend(origin, add) {
+    if (add === null || typeof add !== "object") {
+      return origin;
+    }
+    var keys = Object.keys(add);
+    var i = keys.length;
+    while (i--) {
+      origin[keys[i]] = add[keys[i]];
+    }
+    return origin;
+  }
+  glob.hasMagic = function(pattern, options_) {
+    var options = extend({}, options_);
+    options.noprocess = true;
+    var g = new Glob(pattern, options);
+    var set = g.minimatch.set;
+    if (!pattern)
+      return false;
+    if (set.length > 1)
+      return true;
+    for (var j = 0;j < set[0].length; j++) {
+      if (typeof set[0][j] !== "string")
+        return true;
+    }
+    return false;
+  };
+  glob.Glob = Glob;
+  inherits(Glob, EE);
+  function Glob(pattern, options, cb) {
+    if (typeof options === "function") {
+      cb = options;
+      options = null;
+    }
+    if (options && options.sync) {
+      if (cb)
+        throw new TypeError("callback provided to sync glob");
+      return new GlobSync(pattern, options);
+    }
+    if (!(this instanceof Glob))
+      return new Glob(pattern, options, cb);
+    setopts(this, pattern, options);
+    this._didRealPath = false;
+    var n = this.minimatch.set.length;
+    this.matches = new Array(n);
+    if (typeof cb === "function") {
+      cb = once(cb);
+      this.on("error", cb);
+      this.on("end", function(matches) {
+        cb(null, matches);
+      });
+    }
+    var self = this;
+    this._processing = 0;
+    this._emitQueue = [];
+    this._processQueue = [];
+    this.paused = false;
+    if (this.noprocess)
+      return this;
+    if (n === 0)
+      return done();
+    var sync = true;
+    for (var i = 0;i < n; i++) {
+      this._process(this.minimatch.set[i], i, false, done);
+    }
+    sync = false;
+    function done() {
+      --self._processing;
+      if (self._processing <= 0) {
+        if (sync) {
+          process.nextTick(function() {
+            self._finish();
+          });
+        } else {
+          self._finish();
+        }
+      }
+    }
+  }
+  Glob.prototype._finish = function() {
+    assert(this instanceof Glob);
+    if (this.aborted)
+      return;
+    if (this.realpath && !this._didRealpath)
+      return this._realpath();
+    common.finish(this);
+    this.emit("end", this.found);
+  };
+  Glob.prototype._realpath = function() {
+    if (this._didRealpath)
+      return;
+    this._didRealpath = true;
+    var n = this.matches.length;
+    if (n === 0)
+      return this._finish();
+    var self = this;
+    for (var i = 0;i < this.matches.length; i++)
+      this._realpathSet(i, next);
+    function next() {
+      if (--n === 0)
+        self._finish();
+    }
+  };
+  Glob.prototype._realpathSet = function(index, cb) {
+    var matchset = this.matches[index];
+    if (!matchset)
+      return cb();
+    var found = Object.keys(matchset);
+    var self = this;
+    var n = found.length;
+    if (n === 0)
+      return cb();
+    var set = this.matches[index] = Object.create(null);
+    found.forEach(function(p, i) {
+      p = self._makeAbs(p);
+      rp.realpath(p, self.realpathCache, function(er, real) {
+        if (!er)
+          set[real] = true;
+        else if (er.syscall === "stat")
+          set[p] = true;
+        else
+          self.emit("error", er);
+        if (--n === 0) {
+          self.matches[index] = set;
+          cb();
+        }
+      });
+    });
+  };
+  Glob.prototype._mark = function(p) {
+    return common.mark(this, p);
+  };
+  Glob.prototype._makeAbs = function(f) {
+    return common.makeAbs(this, f);
+  };
+  Glob.prototype.abort = function() {
+    this.aborted = true;
+    this.emit("abort");
+  };
+  Glob.prototype.pause = function() {
+    if (!this.paused) {
+      this.paused = true;
+      this.emit("pause");
+    }
+  };
+  Glob.prototype.resume = function() {
+    if (this.paused) {
+      this.emit("resume");
+      this.paused = false;
+      if (this._emitQueue.length) {
+        var eq = this._emitQueue.slice(0);
+        this._emitQueue.length = 0;
+        for (var i = 0;i < eq.length; i++) {
+          var e = eq[i];
+          this._emitMatch(e[0], e[1]);
+        }
+      }
+      if (this._processQueue.length) {
+        var pq = this._processQueue.slice(0);
+        this._processQueue.length = 0;
+        for (var i = 0;i < pq.length; i++) {
+          var p = pq[i];
+          this._processing--;
+          this._process(p[0], p[1], p[2], p[3]);
+        }
+      }
+    }
+  };
+  Glob.prototype._process = function(pattern, index, inGlobStar, cb) {
+    assert(this instanceof Glob);
+    assert(typeof cb === "function");
+    if (this.aborted)
+      return;
+    this._processing++;
+    if (this.paused) {
+      this._processQueue.push([pattern, index, inGlobStar, cb]);
+      return;
+    }
+    var n = 0;
+    while (typeof pattern[n] === "string") {
+      n++;
+    }
+    var prefix;
+    switch (n) {
+      case pattern.length:
+        this._processSimple(pattern.join("/"), index, cb);
+        return;
+      case 0:
+        prefix = null;
+        break;
+      default:
+        prefix = pattern.slice(0, n).join("/");
+        break;
+    }
+    var remain = pattern.slice(n);
+    var read;
+    if (prefix === null)
+      read = ".";
+    else if (isAbsolute(prefix) || isAbsolute(pattern.map(function(p) {
+      return typeof p === "string" ? p : "[*]";
+    }).join("/"))) {
+      if (!prefix || !isAbsolute(prefix))
+        prefix = "/" + prefix;
+      read = prefix;
+    } else
+      read = prefix;
+    var abs = this._makeAbs(read);
+    if (childrenIgnored(this, read))
+      return cb();
+    var isGlobStar = remain[0] === minimatch.GLOBSTAR;
+    if (isGlobStar)
+      this._processGlobStar(prefix, read, abs, remain, index, inGlobStar, cb);
+    else
+      this._processReaddir(prefix, read, abs, remain, index, inGlobStar, cb);
+  };
+  Glob.prototype._processReaddir = function(prefix, read, abs, remain, index, inGlobStar, cb) {
+    var self = this;
+    this._readdir(abs, inGlobStar, function(er, entries) {
+      return self._processReaddir2(prefix, read, abs, remain, index, inGlobStar, entries, cb);
+    });
+  };
+  Glob.prototype._processReaddir2 = function(prefix, read, abs, remain, index, inGlobStar, entries, cb) {
+    if (!entries)
+      return cb();
+    var pn = remain[0];
+    var negate = !!this.minimatch.negate;
+    var rawGlob = pn._glob;
+    var dotOk = this.dot || rawGlob.charAt(0) === ".";
+    var matchedEntries = [];
+    for (var i = 0;i < entries.length; i++) {
+      var e = entries[i];
+      if (e.charAt(0) !== "." || dotOk) {
+        var m;
+        if (negate && !prefix) {
+          m = !e.match(pn);
+        } else {
+          m = e.match(pn);
+        }
+        if (m)
+          matchedEntries.push(e);
+      }
+    }
+    var len = matchedEntries.length;
+    if (len === 0)
+      return cb();
+    if (remain.length === 1 && !this.mark && !this.stat) {
+      if (!this.matches[index])
+        this.matches[index] = Object.create(null);
+      for (var i = 0;i < len; i++) {
+        var e = matchedEntries[i];
+        if (prefix) {
+          if (prefix !== "/")
+            e = prefix + "/" + e;
+          else
+            e = prefix + e;
+        }
+        if (e.charAt(0) === "/" && !this.nomount) {
+          e = path.join(this.root, e);
+        }
+        this._emitMatch(index, e);
+      }
+      return cb();
+    }
+    remain.shift();
+    for (var i = 0;i < len; i++) {
+      var e = matchedEntries[i];
+      var newPattern;
+      if (prefix) {
+        if (prefix !== "/")
+          e = prefix + "/" + e;
+        else
+          e = prefix + e;
+      }
+      this._process([e].concat(remain), index, inGlobStar, cb);
+    }
+    cb();
+  };
+  Glob.prototype._emitMatch = function(index, e) {
+    if (this.aborted)
+      return;
+    if (isIgnored(this, e))
+      return;
+    if (this.paused) {
+      this._emitQueue.push([index, e]);
+      return;
+    }
+    var abs = isAbsolute(e) ? e : this._makeAbs(e);
+    if (this.mark)
+      e = this._mark(e);
+    if (this.absolute)
+      e = abs;
+    if (this.matches[index][e])
+      return;
+    if (this.nodir) {
+      var c = this.cache[abs];
+      if (c === "DIR" || Array.isArray(c))
+        return;
+    }
+    this.matches[index][e] = true;
+    var st = this.statCache[abs];
+    if (st)
+      this.emit("stat", e, st);
+    this.emit("match", e);
+  };
+  Glob.prototype._readdirInGlobStar = function(abs, cb) {
+    if (this.aborted)
+      return;
+    if (this.follow)
+      return this._readdir(abs, false, cb);
+    var lstatkey = "lstat\x00" + abs;
+    var self = this;
+    var lstatcb = inflight(lstatkey, lstatcb_);
+    if (lstatcb)
+      self.fs.lstat(abs, lstatcb);
+    function lstatcb_(er, lstat) {
+      if (er && er.code === "ENOENT")
+        return cb();
+      var isSym = lstat && lstat.isSymbolicLink();
+      self.symlinks[abs] = isSym;
+      if (!isSym && lstat && !lstat.isDirectory()) {
+        self.cache[abs] = "FILE";
+        cb();
+      } else
+        self._readdir(abs, false, cb);
+    }
+  };
+  Glob.prototype._readdir = function(abs, inGlobStar, cb) {
+    if (this.aborted)
+      return;
+    cb = inflight("readdir\x00" + abs + "\x00" + inGlobStar, cb);
+    if (!cb)
+      return;
+    if (inGlobStar && !ownProp(this.symlinks, abs))
+      return this._readdirInGlobStar(abs, cb);
+    if (ownProp(this.cache, abs)) {
+      var c = this.cache[abs];
+      if (!c || c === "FILE")
+        return cb();
+      if (Array.isArray(c))
+        return cb(null, c);
+    }
+    var self = this;
+    self.fs.readdir(abs, readdirCb(this, abs, cb));
+  };
+  function readdirCb(self, abs, cb) {
+    return function(er, entries) {
+      if (er)
+        self._readdirError(abs, er, cb);
+      else
+        self._readdirEntries(abs, entries, cb);
+    };
+  }
+  Glob.prototype._readdirEntries = function(abs, entries, cb) {
+    if (this.aborted)
+      return;
+    if (!this.mark && !this.stat) {
+      for (var i = 0;i < entries.length; i++) {
+        var e = entries[i];
+        if (abs === "/")
+          e = abs + e;
+        else
+          e = abs + "/" + e;
+        this.cache[e] = true;
+      }
+    }
+    this.cache[abs] = entries;
+    return cb(null, entries);
+  };
+  Glob.prototype._readdirError = function(f, er, cb) {
+    if (this.aborted)
+      return;
+    switch (er.code) {
+      case "ENOTSUP":
+      case "ENOTDIR":
+        var abs = this._makeAbs(f);
+        this.cache[abs] = "FILE";
+        if (abs === this.cwdAbs) {
+          var error = new Error(er.code + " invalid cwd " + this.cwd);
+          error.path = this.cwd;
+          error.code = er.code;
+          this.emit("error", error);
+          this.abort();
+        }
+        break;
+      case "ENOENT":
+      case "ELOOP":
+      case "ENAMETOOLONG":
+      case "UNKNOWN":
+        this.cache[this._makeAbs(f)] = false;
+        break;
+      default:
+        this.cache[this._makeAbs(f)] = false;
+        if (this.strict) {
+          this.emit("error", er);
+          this.abort();
+        }
+        if (!this.silent)
+          console.error("glob error", er);
+        break;
+    }
+    return cb();
+  };
+  Glob.prototype._processGlobStar = function(prefix, read, abs, remain, index, inGlobStar, cb) {
+    var self = this;
+    this._readdir(abs, inGlobStar, function(er, entries) {
+      self._processGlobStar2(prefix, read, abs, remain, index, inGlobStar, entries, cb);
+    });
+  };
+  Glob.prototype._processGlobStar2 = function(prefix, read, abs, remain, index, inGlobStar, entries, cb) {
+    if (!entries)
+      return cb();
+    var remainWithoutGlobStar = remain.slice(1);
+    var gspref = prefix ? [prefix] : [];
+    var noGlobStar = gspref.concat(remainWithoutGlobStar);
+    this._process(noGlobStar, index, false, cb);
+    var isSym = this.symlinks[abs];
+    var len = entries.length;
+    if (isSym && inGlobStar)
+      return cb();
+    for (var i = 0;i < len; i++) {
+      var e = entries[i];
+      if (e.charAt(0) === "." && !this.dot)
+        continue;
+      var instead = gspref.concat(entries[i], remainWithoutGlobStar);
+      this._process(instead, index, true, cb);
+      var below = gspref.concat(entries[i], remain);
+      this._process(below, index, true, cb);
+    }
+    cb();
+  };
+  Glob.prototype._processSimple = function(prefix, index, cb) {
+    var self = this;
+    this._stat(prefix, function(er, exists) {
+      self._processSimple2(prefix, index, er, exists, cb);
+    });
+  };
+  Glob.prototype._processSimple2 = function(prefix, index, er, exists, cb) {
+    if (!this.matches[index])
+      this.matches[index] = Object.create(null);
+    if (!exists)
+      return cb();
+    if (prefix && isAbsolute(prefix) && !this.nomount) {
+      var trail = /[\/\\]$/.test(prefix);
+      if (prefix.charAt(0) === "/") {
+        prefix = path.join(this.root, prefix);
+      } else {
+        prefix = path.resolve(this.root, prefix);
+        if (trail)
+          prefix += "/";
+      }
+    }
+    if (process.platform === "win32")
+      prefix = prefix.replace(/\\/g, "/");
+    this._emitMatch(index, prefix);
+    cb();
+  };
+  Glob.prototype._stat = function(f, cb) {
+    var abs = this._makeAbs(f);
+    var needDir = f.slice(-1) === "/";
+    if (f.length > this.maxLength)
+      return cb();
+    if (!this.stat && ownProp(this.cache, abs)) {
+      var c = this.cache[abs];
+      if (Array.isArray(c))
+        c = "DIR";
+      if (!needDir || c === "DIR")
+        return cb(null, c);
+      if (needDir && c === "FILE")
+        return cb();
+    }
+    var exists;
+    var stat = this.statCache[abs];
+    if (stat !== undefined) {
+      if (stat === false)
+        return cb(null, stat);
+      else {
+        var type = stat.isDirectory() ? "DIR" : "FILE";
+        if (needDir && type === "FILE")
+          return cb();
+        else
+          return cb(null, type, stat);
+      }
+    }
+    var self = this;
+    var statcb = inflight("stat\x00" + abs, lstatcb_);
+    if (statcb)
+      self.fs.lstat(abs, statcb);
+    function lstatcb_(er, lstat) {
+      if (lstat && lstat.isSymbolicLink()) {
+        return self.fs.stat(abs, function(er2, stat2) {
+          if (er2)
+            self._stat2(f, abs, null, lstat, cb);
+          else
+            self._stat2(f, abs, er2, stat2, cb);
+        });
+      } else {
+        self._stat2(f, abs, er, lstat, cb);
+      }
+    }
+  };
+  Glob.prototype._stat2 = function(f, abs, er, stat, cb) {
+    if (er && (er.code === "ENOENT" || er.code === "ENOTDIR")) {
+      this.statCache[abs] = false;
+      return cb();
+    }
+    var needDir = f.slice(-1) === "/";
+    this.statCache[abs] = stat;
+    if (abs.slice(-1) === "/" && stat && !stat.isDirectory())
+      return cb(null, false, stat);
+    var c = true;
+    if (stat)
+      c = stat.isDirectory() ? "DIR" : "FILE";
+    this.cache[abs] = this.cache[abs] || c;
+    if (needDir && c === "FILE")
+      return cb();
+    return cb(null, c, stat);
+  };
+});
+
+// node_modules/true-case-path/index.js
+var require_true_case_path = __commonJS((exports, module) => {
+  var glob = require_glob();
+  var path = __require("path");
+  function trueCasePathSync(fsPath) {
+    var fsPathNormalized = path.normalize(fsPath);
+    if (process.platform === "darwin")
+      fsPathNormalized = fsPathNormalized.normalize("NFD");
+    var pathRoot = path.parse(fsPathNormalized).root;
+    var noDrivePath = fsPathNormalized.slice(Math.max(pathRoot.length - 1, 0));
+    return glob.sync(noDrivePath, { nocase: true, cwd: pathRoot })[0];
+  }
+  module.exports = trueCasePathSync;
+});
+
+// node_modules/codeowners/codeowners.js
+var require_codeowners = __commonJS((exports, module) => {
+  var findUp = require_find_up();
+  var fs = __require("fs");
+  var ignore = require_ignore();
+  var isDirectory = require_is_directory();
+  var path = __require("path");
+  var trueCasePath = require_true_case_path();
+  function ownerMatcher(pathString) {
+    const matcher = ignore().add(pathString);
+    return matcher.ignores.bind(matcher);
+  }
+  function Codeowners(currentPath, fileName = "CODEOWNERS") {
+    const pathOrCwd = currentPath || process.cwd();
+    const codeownersPath = findUp.sync([`.github/${fileName}`, `.gitlab/${fileName}`, `docs/${fileName}`, `${fileName}`], { cwd: pathOrCwd });
+    if (!codeownersPath) {
+      throw new Error(`Could not find a CODEOWNERS file`);
+    }
+    this.codeownersFilePath = trueCasePath(codeownersPath);
+    this.codeownersDirectory = path.dirname(this.codeownersFilePath);
+    if (this.codeownersDirectory.match(/\/(.github|.gitlab|docs)$/i)) {
+      this.codeownersDirectory = path.dirname(this.codeownersDirectory);
+    }
+    const codeownersFile = path.basename(this.codeownersFilePath);
+    if (codeownersFile !== fileName) {
+      throw new Error(`Found a ${fileName} file but it was lower-cased: ${this.codeownersFilePath}`);
+    }
+    if (isDirectory.sync(this.codeownersFilePath)) {
+      throw new Error(`Found a ${fileName} but it's a directory: ${this.codeownersFilePath}`);
+    }
+    const lines = fs.readFileSync(this.codeownersFilePath).toString().split(/\r\n|\r|\n/);
+    const ownerEntries = [];
+    for (const line of lines) {
+      if (!line) {
+        continue;
+      }
+      if (line.startsWith("#")) {
+        continue;
+      }
+      const [pathString, ...usernames] = line.split(/\s+/);
+      ownerEntries.push({
+        path: pathString,
+        usernames,
+        match: ownerMatcher(pathString)
+      });
+    }
+    this.ownerEntries = ownerEntries.reverse();
+  }
+  var EMPTY_ARRAY = [];
+  Codeowners.prototype.getOwner = function getOwner(filePath) {
+    for (const entry of this.ownerEntries) {
+      if (entry.match(filePath)) {
+        return entry.usernames;
+      }
+    }
+    return EMPTY_ARRAY;
+  };
+  module.exports = Codeowners;
+});
+
 // src/index.ts
 var core3 = __toESM(require_core(), 1);
 
@@ -18818,7 +25605,444 @@ function writeOutputs(outputs) {
 
 // src/orchestrator/runAction.ts
 var core2 = __toESM(require_core(), 1);
-
+var github = __toESM(require_github(), 1);
+// src/adapters/github/codeowners.ts
+var codeownersQuery = `
+  query Codeowners($owner: String!, $repo: String!, $root: String!, $github: String!, $docs: String!) {
+    repository(owner: $owner, name: $repo) {
+      root: object(expression: $root) { ... on Blob { text } }
+      github: object(expression: $github) { ... on Blob { text } }
+      docs: object(expression: $docs) { ... on Blob { text } }
+    }
+  }
+`;
+async function fetchCodeownersAtBaseRef(octokit, owner, repo, baseRef) {
+  const response = await octokit.graphql(codeownersQuery, {
+    owner,
+    repo,
+    root: `${baseRef}:CODEOWNERS`,
+    github: `${baseRef}:.github/CODEOWNERS`,
+    docs: `${baseRef}:docs/CODEOWNERS`
+  });
+  const repository = response.repository;
+  if (!repository) {
+    return { found: false, path: null, content: null };
+  }
+  if (repository.root?.text != null) {
+    return { found: true, path: "CODEOWNERS", content: repository.root.text };
+  }
+  if (repository.github?.text != null) {
+    return { found: true, path: ".github/CODEOWNERS", content: repository.github.text };
+  }
+  if (repository.docs?.text != null) {
+    return { found: true, path: "docs/CODEOWNERS", content: repository.docs.text };
+  }
+  return { found: false, path: null, content: null };
+}
+// src/adapters/github/prCore.ts
+var prCoreQuery = `
+  query PrCore($owner: String!, $repo: String!, $pullNumber: Int!, $cursor: String) {
+    repository(owner: $owner, name: $repo) {
+      pullRequest(number: $pullNumber) {
+        id
+        number
+        isDraft
+        author { login }
+        assignees(first: 50) { nodes { login } }
+        labels(first: 50) { nodes { name } }
+        reviewRequests(first: 50) {
+          nodes {
+            requestedReviewer {
+              ... on User { login }
+            }
+          }
+        }
+        baseRepository { owner { login } name }
+        headRepository { owner { login } name }
+        baseRefName
+        files(first: 100, after: $cursor) {
+          pageInfo { hasNextPage endCursor }
+          nodes { path additions deletions changeType }
+        }
+        suggestedReviewers {
+          reviewer {
+            ... on User { login }
+          }
+        }
+      }
+    }
+  }
+`;
+function mapFiles(nodes) {
+  return nodes.map((node) => ({
+    path: node.path,
+    additions: node.additions,
+    deletions: node.deletions,
+    changeType: node.changeType
+  }));
+}
+async function fetchPrCoreData(octokit, owner, repo, pullNumber) {
+  let cursor = null;
+  const allFiles = [];
+  let staticFields = null;
+  while (true) {
+    const response = await octokit.graphql(prCoreQuery, {
+      owner,
+      repo,
+      pullNumber,
+      cursor
+    });
+    const pr = response.repository?.pullRequest;
+    if (!pr) {
+      throw new Error(`Pull request ${owner}/${repo}#${pullNumber} not found`);
+    }
+    if (!staticFields) {
+      const headRepo = pr.headRepository;
+      staticFields = {
+        nodeId: pr.id,
+        number: pr.number,
+        isDraft: pr.isDraft,
+        authorLogin: pr.author?.login ?? null,
+        assignees: pr.assignees.nodes.map((node) => node.login.toLowerCase()),
+        labels: pr.labels.nodes.map((node) => node.name),
+        requestedReviewers: pr.reviewRequests.nodes.flatMap((node) => node.requestedReviewer?.login ? [node.requestedReviewer.login.toLowerCase()] : []),
+        baseOwner: pr.baseRepository.owner.login,
+        baseRepo: pr.baseRepository.name,
+        baseRef: pr.baseRefName,
+        headOwner: headRepo?.owner.login ?? pr.baseRepository.owner.login,
+        headRepo: headRepo?.name ?? pr.baseRepository.name,
+        suggestedReviewers: pr.suggestedReviewers.flatMap((reviewer) => reviewer.reviewer?.login ? [reviewer.reviewer.login.toLowerCase()] : [])
+      };
+    }
+    allFiles.push(...mapFiles(pr.files.nodes));
+    if (!pr.files.pageInfo.hasNextPage) {
+      break;
+    }
+    cursor = pr.files.pageInfo.endCursor;
+  }
+  return {
+    ...staticFields,
+    files: allFiles
+  };
+}
+// src/adapters/github/renameRecovery.ts
+async function fetchRenamePreviousPathByCurrentFilename(octokit, owner, repo, pullNumber) {
+  const previousPathByCurrentPath = {};
+  let page = 1;
+  while (true) {
+    const response = await octokit.rest.pulls.listFiles({
+      owner,
+      repo,
+      pull_number: pullNumber,
+      per_page: 100,
+      page
+    });
+    if (response.data.length === 0) {
+      break;
+    }
+    for (const file of response.data) {
+      if (file.status === "renamed" && file.previous_filename) {
+        previousPathByCurrentPath[file.filename] = file.previous_filename;
+      }
+    }
+    if (response.data.length < 100) {
+      break;
+    }
+    page += 1;
+  }
+  return previousPathByCurrentPath;
+}
+// src/adapters/github/signals.ts
+function emptySignalSnapshot() {
+  return {
+    activity: {
+      openAssignedPrs: 0,
+      pendingReviewRequests: 0,
+      recentAssignments: 0
+    },
+    review: {
+      distinctOverlappingReviewedPrs: 0
+    },
+    commitsOnTouchedPaths: 0
+  };
+}
+function ensureSnapshot(signalsByLogin, login) {
+  if (!signalsByLogin[login]) {
+    signalsByLogin[login] = emptySignalSnapshot();
+  }
+  return signalsByLogin[login];
+}
+var activityQuery = `
+  query ActivityBundle($owner: String!, $repo: String!, $cursor: String, $since: DateTime!) {
+    repository(owner: $owner, name: $repo) {
+      pullRequests(states: [OPEN], first: 50, after: $cursor, orderBy: { field: UPDATED_AT, direction: DESC }) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          number
+          updatedAt
+          assignees(first: 50) { nodes { login } }
+          reviewRequests(first: 50) {
+            nodes {
+              requestedReviewer {
+                ... on User { login }
+              }
+            }
+          }
+          timelineItems(itemTypes: [ASSIGNED_EVENT], first: 100, since: $since) {
+            nodes {
+              ... on AssignedEvent {
+                createdAt
+                assignee {
+                  ... on User { login }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+async function fetchActivitySignals(octokit, owner, repo, activitySinceIso, recentAssignmentSinceIso, candidates, teamMembersByTeamSlug = {}) {
+  const signalsByLogin = {};
+  const candidateSet = new Set(candidates.map((login) => login.toLowerCase()));
+  let cursor = null;
+  while (true) {
+    const response = await octokit.graphql(activityQuery, {
+      owner,
+      repo,
+      cursor,
+      since: recentAssignmentSinceIso
+    });
+    const pullRequests = response.repository?.pullRequests;
+    if (!pullRequests)
+      break;
+    for (const pr of pullRequests.nodes) {
+      if (pr.updatedAt < activitySinceIso) {
+        continue;
+      }
+      const assignees = pr.assignees.nodes.map((node) => node.login.toLowerCase());
+      for (const assignee of assignees) {
+        if (!candidateSet.has(assignee))
+          continue;
+        ensureSnapshot(signalsByLogin, assignee).activity.openAssignedPrs += 1;
+      }
+      for (const reviewRequest of pr.reviewRequests.nodes) {
+        const reviewer = reviewRequest.requestedReviewer;
+        if (!reviewer)
+          continue;
+        if (reviewer.login) {
+          const login = reviewer.login.toLowerCase();
+          if (candidateSet.has(login)) {
+            ensureSnapshot(signalsByLogin, login).activity.pendingReviewRequests += 1;
+          }
+          continue;
+        }
+        if (reviewer.slug && reviewer.organization?.login) {
+          const teamKey = `${reviewer.organization.login.toLowerCase()}/${reviewer.slug.toLowerCase()}`;
+          const members = teamMembersByTeamSlug[teamKey] ?? [];
+          for (const memberLogin of members) {
+            const login = memberLogin.toLowerCase();
+            if (!candidateSet.has(login))
+              continue;
+            ensureSnapshot(signalsByLogin, login).activity.pendingReviewRequests += 1;
+          }
+        }
+      }
+      for (const event of pr.timelineItems.nodes) {
+        if (event.createdAt < recentAssignmentSinceIso)
+          continue;
+        const login = event.assignee?.login?.toLowerCase();
+        if (!login || !candidateSet.has(login))
+          continue;
+        ensureSnapshot(signalsByLogin, login).activity.recentAssignments += 1;
+      }
+    }
+    if (!pullRequests.pageInfo.hasNextPage)
+      break;
+    cursor = pullRequests.pageInfo.endCursor;
+  }
+  return signalsByLogin;
+}
+var reviewFamiliarityQuery = `
+  query ReviewFamiliarity($owner: String!, $repo: String!, $cursor: String) {
+    repository(owner: $owner, name: $repo) {
+      pullRequests(states: [OPEN, MERGED, CLOSED], first: 20, after: $cursor, orderBy: { field: UPDATED_AT, direction: DESC }) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          number
+          updatedAt
+          files(first: 100) { nodes { path } }
+          reviews(first: 100) { nodes { author { login } submittedAt } }
+        }
+      }
+    }
+  }
+`;
+async function fetchReviewFamiliaritySignals(octokit, owner, repo, reviewWindowSinceIso, overlapPaths) {
+  const countsByLogin = {};
+  const overlapPathSet = new Set(overlapPaths);
+  let cursor = null;
+  while (true) {
+    const response = await octokit.graphql(reviewFamiliarityQuery, {
+      owner,
+      repo,
+      cursor
+    });
+    const pullRequests = response.repository?.pullRequests;
+    if (!pullRequests)
+      break;
+    let pageHasRecentPr = false;
+    for (const pr of pullRequests.nodes) {
+      if (pr.updatedAt >= reviewWindowSinceIso) {
+        pageHasRecentPr = true;
+      }
+      const hasOverlap = pr.files.nodes.some((file) => overlapPathSet.has(file.path));
+      if (!hasOverlap)
+        continue;
+      const reviewersForPr = new Set;
+      for (const review of pr.reviews.nodes) {
+        if (!review.submittedAt || review.submittedAt < reviewWindowSinceIso)
+          continue;
+        const login = review.author?.login?.toLowerCase();
+        if (!login)
+          continue;
+        reviewersForPr.add(login);
+      }
+      for (const reviewer of reviewersForPr) {
+        countsByLogin[reviewer] = (countsByLogin[reviewer] ?? 0) + 1;
+      }
+    }
+    if (!pullRequests.pageInfo.hasNextPage || !pageHasRecentPr)
+      break;
+    cursor = pullRequests.pageInfo.endCursor;
+  }
+  return countsByLogin;
+}
+function buildCommitHistoryQuery(batchSize) {
+  const segments = [];
+  for (let i = 0;i < batchSize; i += 1) {
+    segments.push(`
+      file${i}: object(expression: $branch) {
+        ... on Commit {
+          history(path: $path${i}, since: $since) {
+            nodes { author { user { login } } }
+          }
+        }
+      }
+    `);
+  }
+  const variableDefs = [`$owner: String!`, `$repo: String!`, `$branch: String!`, `$since: GitTimestamp!`];
+  for (let i = 0;i < batchSize; i += 1) {
+    variableDefs.push(`$path${i}: String!`);
+  }
+  return `
+    query CommitFamiliarity(${variableDefs.join(", ")}) {
+      repository(owner: $owner, name: $repo) {
+        ${segments.join(`
+`)}
+      }
+    }
+  `;
+}
+async function fetchCommitFamiliaritySignals(octokit, owner, repo, branchExpression, sinceIso, paths) {
+  const countsByLogin = {};
+  const batchSize = 20;
+  for (let start = 0;start < paths.length; start += batchSize) {
+    const batch = paths.slice(start, start + batchSize);
+    const query = buildCommitHistoryQuery(batch.length);
+    const variables = {
+      owner,
+      repo,
+      branch: branchExpression,
+      since: sinceIso
+    };
+    for (let i = 0;i < batch.length; i += 1) {
+      variables[`path${i}`] = batch[i];
+    }
+    const response = await octokit.graphql(query, variables);
+    const repository = response.repository ?? {};
+    for (let i = 0;i < batch.length; i += 1) {
+      const history = repository[`file${i}`]?.history.nodes ?? [];
+      for (const commit of history) {
+        const login = commit.author?.user?.login?.toLowerCase();
+        if (!login)
+          continue;
+        countsByLogin[login] = (countsByLogin[login] ?? 0) + 1;
+      }
+    }
+  }
+  return countsByLogin;
+}
+var teamMembersQuery = `
+  query TeamMembers($org: String!, $slug: String!, $cursor: String) {
+    organization(login: $org) {
+      team(slug: $slug) {
+        members(first: 100, after: $cursor) {
+          pageInfo { hasNextPage endCursor }
+          nodes { login }
+        }
+      }
+    }
+  }
+`;
+async function expandTeamMembers(octokit, org, teamSlug) {
+  const members = [];
+  let cursor = null;
+  while (true) {
+    const response = await octokit.graphql(teamMembersQuery, {
+      org,
+      slug: teamSlug,
+      cursor
+    });
+    const membersConnection = response.organization?.team?.members;
+    if (!membersConnection) {
+      return [];
+    }
+    members.push(...membersConnection.nodes.map((node) => node.login.toLowerCase()));
+    if (!membersConnection.pageInfo.hasNextPage) {
+      break;
+    }
+    cursor = membersConnection.pageInfo.endCursor;
+  }
+  return [...new Set(members)];
+}
+async function fetchLimitedAvailabilityUsers(octokit, logins) {
+  const uniqueLogins = [...new Set(logins.map((login) => login.toLowerCase()))];
+  const outOfOffice = [];
+  const batchSize = 20;
+  for (let start = 0;start < uniqueLogins.length; start += batchSize) {
+    const batch = uniqueLogins.slice(start, start + batchSize);
+    const variableDefs = batch.map((_, index) => `$login${index}: String!`).join(", ");
+    const fields = batch.map((_, index) => `
+      user${index}: user(login: $login${index}) {
+        login
+        status {
+          indicatesLimitedAvailability
+        }
+      }`).join(`
+`);
+    const query = `
+      query CandidateStatus(${variableDefs}) {
+        ${fields}
+      }
+    `;
+    const variables = {};
+    for (let index = 0;index < batch.length; index += 1) {
+      variables[`login${index}`] = batch[index];
+    }
+    const response = await octokit.graphql(query, variables);
+    for (let index = 0;index < batch.length; index += 1) {
+      const user = response[`user${index}`];
+      if (!user)
+        continue;
+      if (user.status?.indicatesLimitedAvailability) {
+        outOfOffice.push(user.login.toLowerCase());
+      }
+    }
+  }
+  return [...new Set(outOfOffice)];
+}
 // src/config/parseConfig.ts
 function parseIntInput(inputName, raw) {
   const value = Number.parseInt(raw, 10);
@@ -18896,11 +26120,453 @@ function parseActionConfig(inputs) {
   return config;
 }
 
+// src/engine/index.ts
+var tierRank = {
+  direct_gte50: 5,
+  direct_gte20: 4,
+  direct_floor: 3,
+  team_any: 2,
+  fallback_any: 1,
+  none: 0
+};
+function normalizeLogin(login) {
+  return login.trim().toLowerCase();
+}
+function dedupeLogins(logins) {
+  return [...new Set(logins.map(normalizeLogin).filter(Boolean))];
+}
+function toSet(logins) {
+  return new Set(dedupeLogins(logins));
+}
+function pickDirectTier(ratio) {
+  if (ratio >= 0.5)
+    return "direct_gte50";
+  if (ratio >= 0.2)
+    return "direct_gte20";
+  return "direct_floor";
+}
+function strongerTier(a, b) {
+  return tierRank[a] >= tierRank[b] ? a : b;
+}
+function isExcludedByPattern(login, patterns) {
+  return patterns.some((pattern) => pattern.test(login));
+}
+function shouldExclude(login, filters) {
+  const normalized = normalizeLogin(login);
+  if (!normalized)
+    return true;
+  if (normalized === normalizeLogin(filters.prAuthor))
+    return true;
+  if (toSet(filters.excludeUsers).has(normalized))
+    return true;
+  if (toSet(filters.unavailableReviewers).has(normalized))
+    return true;
+  if (toSet(filters.oooUsers).has(normalized))
+    return true;
+  if (toSet(filters.deletedUsers).has(normalized))
+    return true;
+  return isExcludedByPattern(normalized, filters.botLoginPatterns);
+}
+function computeCodeownersCandidates(input) {
+  const ownershipDenominator = input.files.reduce((sum, file) => sum + file.loc, 0);
+  const byLogin = new Map;
+  for (const file of input.files) {
+    const loc = Math.max(0, file.loc);
+    for (const directOwner of dedupeLogins(file.directOwners)) {
+      const current = byLogin.get(directOwner) ?? {
+        directOwnedLoc: 0,
+        matchedByTeam: false,
+        matchedByFallback: false
+      };
+      current.directOwnedLoc += loc;
+      byLogin.set(directOwner, current);
+    }
+    for (const teamMember of dedupeLogins(file.teamMembers)) {
+      const current = byLogin.get(teamMember) ?? {
+        directOwnedLoc: 0,
+        matchedByTeam: false,
+        matchedByFallback: false
+      };
+      current.matchedByTeam = true;
+      byLogin.set(teamMember, current);
+    }
+    for (const fallbackOwner of dedupeLogins(file.fallbackOwners)) {
+      const current = byLogin.get(fallbackOwner) ?? {
+        directOwnedLoc: 0,
+        matchedByTeam: false,
+        matchedByFallback: false
+      };
+      current.matchedByFallback = true;
+      byLogin.set(fallbackOwner, current);
+    }
+  }
+  return [...byLogin.entries()].map(([login, meta]) => {
+    let tier = "none";
+    if (meta.directOwnedLoc > 0 && ownershipDenominator > 0) {
+      tier = pickDirectTier(meta.directOwnedLoc / ownershipDenominator);
+    } else if (meta.matchedByTeam) {
+      tier = "team_any";
+    } else if (meta.matchedByFallback) {
+      tier = "fallback_any";
+    }
+    return {
+      login,
+      tier,
+      directOwnedLoc: meta.directOwnedLoc,
+      ownershipLocDenominator: ownershipDenominator
+    };
+  });
+}
+function applyFilters(candidates, filters) {
+  return candidates.filter((candidate) => !shouldExclude(candidate.login, filters));
+}
+function buildSignalSeedCandidates(signalSeeds) {
+  const uniqueSignalLogins = dedupeLogins([
+    ...signalSeeds.commitFamiliarityLogins,
+    ...signalSeeds.reviewFamiliarityLogins,
+    ...signalSeeds.suggestedReviewerLogins
+  ]);
+  return uniqueSignalLogins.map((login) => ({
+    login,
+    tier: "none",
+    directOwnedLoc: 0,
+    ownershipLocDenominator: 0
+  }));
+}
+function dedupeCandidates(candidates) {
+  const byLogin = new Map;
+  for (const candidate of candidates) {
+    const existing = byLogin.get(candidate.login);
+    if (!existing) {
+      byLogin.set(candidate.login, candidate);
+      continue;
+    }
+    const tier = strongerTier(existing.tier, candidate.tier);
+    byLogin.set(candidate.login, {
+      ...existing,
+      tier,
+      directOwnedLoc: Math.max(existing.directOwnedLoc, candidate.directOwnedLoc),
+      ownershipLocDenominator: Math.max(existing.ownershipLocDenominator, candidate.ownershipLocDenominator)
+    });
+  }
+  return [...byLogin.values()];
+}
+function buildCandidatePool(input) {
+  const codeownersCandidates = dedupeCandidates(applyFilters(computeCodeownersCandidates(input), input.filters));
+  if (input.codeownersPresent && codeownersCandidates.length > 0) {
+    return {
+      candidates: codeownersCandidates,
+      usedSignalFallback: false
+    };
+  }
+  const signalCandidates = dedupeCandidates(applyFilters(buildSignalSeedCandidates(input.signalSeeds), input.filters));
+  return {
+    candidates: signalCandidates,
+    usedSignalFallback: true
+  };
+}
+function clampPositive(value, max) {
+  return Math.max(0, Math.min(value, max));
+}
+function ownershipTierScore(tier, weights) {
+  switch (tier) {
+    case "direct_gte50":
+      return weights.weightDirectGte50;
+    case "direct_gte20":
+      return weights.weightDirectGte20;
+    case "direct_floor":
+      return weights.weightDirectFloor;
+    case "team_any":
+      return weights.weightTeamAny;
+    case "fallback_any":
+      return weights.weightFallbackAny;
+    case "none":
+      return 0;
+  }
+}
+function getSignalsForLogin(signalsByLogin, login) {
+  return signalsByLogin[login] ?? {
+    commitCount: 0,
+    reviewCount: 0,
+    openAssignedPrs: 0,
+    pendingReviewRequests: 0,
+    recentAssignments: 0
+  };
+}
+function rankCandidates(input) {
+  const ranking = input.candidates.map((candidate) => {
+    const signals2 = getSignalsForLogin(input.signalsByLogin, candidate.login);
+    const components = {
+      direct_ownership: ownershipTierScore(candidate.tier, input.weights),
+      code_familiarity: clampPositive(signals2.commitCount * input.weights.weightCodeFamiliarityPerCommit, input.weights.weightCodeFamiliarityMax),
+      review_familiarity: clampPositive(signals2.reviewCount * input.weights.weightReviewFamiliarityPerReview, input.weights.weightReviewFamiliarityMax),
+      active_load: clampPositive(signals2.openAssignedPrs * input.weights.weightActiveLoadPerPr, input.weights.weightActiveLoadMax),
+      pending_review: clampPositive(signals2.pendingReviewRequests * input.weights.weightPendingReviewPerRequest, input.weights.weightPendingReviewMax),
+      recent_assignment: clampPositive(signals2.recentAssignments * input.weights.weightRecentAssignmentPerPr, input.weights.weightRecentAssignmentMax),
+      team_fallback: candidate.tier === "team_any" ? input.weights.weightTeamFallbackPenalty : 0,
+      fallback_only: candidate.tier === "fallback_any" ? input.weights.weightFallbackOnlyPenalty : 0
+    };
+    const total = components.direct_ownership + components.code_familiarity + components.review_familiarity - components.active_load - components.pending_review - components.recent_assignment - components.team_fallback - components.fallback_only;
+    return {
+      login: candidate.login,
+      total,
+      tier: candidate.tier,
+      components
+    };
+  }).sort((a, b) => {
+    if (a.total !== b.total)
+      return b.total - a.total;
+    if (tierRank[a.tier] !== tierRank[b.tier])
+      return tierRank[b.tier] - tierRank[a.tier];
+    if (a.components.active_load !== b.components.active_load) {
+      return a.components.active_load - b.components.active_load;
+    }
+    if (a.components.recent_assignment !== b.components.recent_assignment) {
+      return a.components.recent_assignment - b.components.recent_assignment;
+    }
+    if (a.components.code_familiarity !== b.components.code_familiarity) {
+      return b.components.code_familiarity - a.components.code_familiarity;
+    }
+    return a.login.localeCompare(b.login);
+  });
+  const winner = ranking.find((candidate) => candidate.total > 0);
+  if (!winner) {
+    throw new Error("all candidates have non-positive scores; workload penalties dominated ownership - consider adjusting weights.");
+  }
+  return {
+    ranking,
+    assignee: winner.login
+  };
+}
+
+// src/orchestrator/codeowners.ts
+var import_codeowners = __toESM(require_codeowners(), 1);
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+function normalizeOwnerToken(token) {
+  const trimmed = token.trim();
+  if (!trimmed.startsWith("@"))
+    return null;
+  return trimmed.slice(1).toLowerCase();
+}
+async function buildCodeownersResolver(content) {
+  const rootDir = await mkdtemp(join(tmpdir(), "pr-assignee-codeowners-"));
+  const codeownersPath = join(rootDir, ".github", "CODEOWNERS");
+  await mkdir(join(rootDir, ".github"), { recursive: true });
+  await writeFile(codeownersPath, content, "utf8");
+  const resolver = new import_codeowners.default(rootDir);
+  return (filePath) => {
+    const owners = resolver.getOwner(filePath).map((owner) => normalizeOwnerToken(owner)).filter(Boolean);
+    const directOwners = [];
+    const teamRefs = [];
+    for (const owner of owners) {
+      if (owner.includes("/")) {
+        teamRefs.push(owner);
+      } else {
+        directOwners.push(owner);
+      }
+    }
+    return {
+      directOwners: [...new Set(directOwners)],
+      teamRefs: [...new Set(teamRefs)]
+    };
+  };
+}
+
 // src/orchestrator/runAction.ts
+var assignMutation = `
+  mutation AssignPr($pullRequestId: ID!, $logins: [String!]!) {
+    addAssigneesToAssignable(input: { assignableId: $pullRequestId, assigneeLogins: $logins }) {
+      assignable {
+        ... on PullRequest {
+          id
+        }
+      }
+    }
+  }
+`;
+function nowMinusDays(days) {
+  const date = new Date;
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString();
+}
+function buildExplanation(assignee, total, runnerUp) {
+  if (!runnerUp) {
+    return `${assignee} - total ${total}`;
+  }
+  return `${assignee} - total ${total}; runner-up: ${runnerUp.login} (${runnerUp.total})`;
+}
 async function runAction() {
   const outputs = createEmptyOutputs();
-  parseActionConfig(core2);
-  core2.info("PR Assignee action scaffold initialized. Full orchestration will be implemented incrementally.");
+  const config = parseActionConfig(core2);
+  const octokit = github.getOctokit(config.effectiveToken);
+  const owner = github.context.repo.owner;
+  const repo = github.context.repo.repo;
+  const pullNumber = github.context.payload.pull_request?.number;
+  if (!owner || !repo || typeof pullNumber !== "number") {
+    throw new Error("Malformed event payload: missing repository owner/name or pull request number.");
+  }
+  const pr = await fetchPrCoreData(octokit, owner, repo, pullNumber);
+  if (pr.isDraft) {
+    outputs.skippedReason = "draft";
+    core2.info("Skipping assignment: pull request is draft.");
+    return outputs;
+  }
+  if (pr.assignees.length > 0) {
+    outputs.skippedReason = "already_assigned";
+    core2.info("Skipping assignment: pull request already has assignees.");
+    return outputs;
+  }
+  if (config.optOutLabel && pr.labels.includes(config.optOutLabel)) {
+    outputs.skippedReason = "opted_out";
+    core2.info(`Skipping assignment: opt-out label "${config.optOutLabel}" is present.`);
+    return outputs;
+  }
+  if (pr.baseOwner !== pr.headOwner || pr.baseRepo !== pr.headRepo) {
+    outputs.skippedReason = "fork_pr";
+    core2.info("Skipping assignment: pull request originates from a fork.");
+    return outputs;
+  }
+  const filesByLoc = [...pr.files].map((file) => ({
+    ...file,
+    loc: file.additions + file.deletions
+  })).sort((a, b) => b.loc - a.loc);
+  const scopedFiles = filesByLoc.slice(0, 200);
+  if (pr.files.length > 200) {
+    core2.warning(`PR touches ${pr.files.length} files; familiarity and ownership computed on top 200 by LOC.`);
+  }
+  const codeowners2 = await fetchCodeownersAtBaseRef(octokit, owner, repo, pr.baseRef);
+  const resolveCodeowners = codeowners2.content ? await buildCodeownersResolver(codeowners2.content) : null;
+  const teamRefSet = new Set;
+  const ownershipFiles = scopedFiles.map((file) => {
+    const ownership = resolveCodeowners ? resolveCodeowners(file.path) : { directOwners: [], teamRefs: [] };
+    for (const teamRef of ownership.teamRefs) {
+      teamRefSet.add(teamRef);
+    }
+    return {
+      path: file.path,
+      loc: file.loc,
+      directOwners: ownership.directOwners,
+      teamRefs: ownership.teamRefs
+    };
+  });
+  const teamMembersByRef = {};
+  for (const teamRef of [...teamRefSet]) {
+    const [org, slug] = teamRef.split("/");
+    if (!org || !slug)
+      continue;
+    try {
+      teamMembersByRef[teamRef] = await expandTeamMembers(octokit, org, slug);
+    } catch (error) {
+      core2.warning(`Team expansion failed for @${teamRef}: ${error instanceof Error ? error.message : String(error)}`);
+      teamMembersByRef[teamRef] = [];
+    }
+  }
+  const candidateFiles = ownershipFiles.map((file) => ({
+    path: file.path,
+    loc: file.loc,
+    directOwners: file.directOwners,
+    teamMembers: file.teamRefs.flatMap((teamRef) => teamMembersByRef[teamRef] ?? []),
+    fallbackOwners: []
+  }));
+  const renameMap = pr.files.some((file) => file.changeType === "RENAMED") ? await fetchRenamePreviousPathByCurrentFilename(octokit, owner, repo, pr.number) : {};
+  const familiaritySince = nowMinusDays(config.signalWindows.familiarityWindowDays);
+  const reviewSince = nowMinusDays(config.signalWindows.reviewWindowDays);
+  const activitySince = nowMinusDays(config.signalWindows.activityWindowDays);
+  const recentAssignmentSince = nowMinusDays(config.signalWindows.recentAssignmentWindowDays);
+  const commitPaths = [...new Set(scopedFiles.flatMap((file) => [file.path, renameMap[file.path]].filter(Boolean)))];
+  const commitSignals = await fetchCommitFamiliaritySignals(octokit, owner, repo, pr.baseRef, familiaritySince, commitPaths);
+  const reviewSignals = await fetchReviewFamiliaritySignals(octokit, owner, repo, reviewSince, scopedFiles.map((file) => file.path));
+  const preCandidatePool = buildCandidatePool({
+    codeownersPresent: codeowners2.found,
+    files: candidateFiles,
+    signalSeeds: {
+      commitFamiliarityLogins: Object.keys(commitSignals),
+      reviewFamiliarityLogins: Object.keys(reviewSignals),
+      suggestedReviewerLogins: pr.suggestedReviewers
+    },
+    filters: {
+      prAuthor: pr.authorLogin ?? "",
+      excludeUsers: config.excludeUsers,
+      unavailableReviewers: config.unavailableReviewers,
+      botLoginPatterns: config.botLoginPatterns,
+      oooUsers: [],
+      deletedUsers: []
+    }
+  });
+  const oooUsers = config.checkGitHubStatus ? await fetchLimitedAvailabilityUsers(octokit, preCandidatePool.candidates.map((candidate) => candidate.login)) : [];
+  const activitySignals = await fetchActivitySignals(octokit, owner, repo, activitySince, recentAssignmentSince, preCandidatePool.candidates.map((candidate) => candidate.login), teamMembersByRef);
+  const candidatePool = buildCandidatePool({
+    codeownersPresent: codeowners2.found,
+    files: candidateFiles,
+    signalSeeds: {
+      commitFamiliarityLogins: Object.keys(commitSignals),
+      reviewFamiliarityLogins: Object.keys(reviewSignals),
+      suggestedReviewerLogins: pr.suggestedReviewers
+    },
+    filters: {
+      prAuthor: pr.authorLogin ?? "",
+      excludeUsers: config.excludeUsers,
+      unavailableReviewers: config.unavailableReviewers,
+      botLoginPatterns: config.botLoginPatterns,
+      oooUsers,
+      deletedUsers: []
+    }
+  });
+  if (candidatePool.candidates.length === 0) {
+    outputs.skippedReason = "empty_candidate_pool";
+    core2.warning("No candidates remain after applying candidate filters.");
+    return outputs;
+  }
+  let ranked;
+  try {
+    ranked = rankCandidates({
+      candidates: candidatePool.candidates,
+      weights: config.scoreWeights,
+      signalsByLogin: Object.fromEntries(candidatePool.candidates.map((candidate) => [
+        candidate.login,
+        {
+          commitCount: commitSignals[candidate.login] ?? 0,
+          reviewCount: reviewSignals[candidate.login] ?? 0,
+          openAssignedPrs: activitySignals[candidate.login]?.activity.openAssignedPrs ?? 0,
+          pendingReviewRequests: activitySignals[candidate.login]?.activity.pendingReviewRequests ?? 0,
+          recentAssignments: activitySignals[candidate.login]?.activity.recentAssignments ?? 0
+        }
+      ]))
+    });
+  } catch (error) {
+    outputs.skippedReason = "empty_candidate_pool";
+    core2.warning(error instanceof Error ? error.message : String(error));
+    return outputs;
+  }
+  outputs.rankedCandidatesJson = JSON.stringify(ranked.ranking);
+  outputs.proposedAssignee = ranked.assignee;
+  outputs.explanation = buildExplanation(ranked.assignee, ranked.ranking[0]?.total ?? 0, ranked.ranking[1] ? { login: ranked.ranking[1].login, total: ranked.ranking[1].total } : null);
+  if (config.dryRun) {
+    core2.info(`Dry run enabled. Proposed assignee: ${outputs.proposedAssignee}`);
+    return outputs;
+  }
+  const assignmentAttempts = Math.min(3, ranked.ranking.length);
+  for (let attempt = 0;attempt < assignmentAttempts; attempt += 1) {
+    const login = ranked.ranking[attempt]?.login;
+    if (!login)
+      break;
+    try {
+      await octokit.graphql(assignMutation, {
+        pullRequestId: pr.nodeId,
+        logins: [login]
+      });
+      outputs.proposedAssignee = login;
+      outputs.assignmentPerformed = true;
+      core2.info(`Assigned @${login} to pull request #${pr.number}.`);
+      return outputs;
+    } catch (error) {
+      core2.warning(`Assignment attempt failed for @${login}; trying next candidate. ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  outputs.assignmentPerformed = false;
+  core2.warning("All assignment attempts failed. Proceeding without assignee.");
   return outputs;
 }
 
