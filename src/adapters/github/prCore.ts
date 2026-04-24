@@ -2,6 +2,7 @@ import type { OctokitLike, PrChangedFile, PrCoreData } from './types.js';
 
 interface PrCoreGraphQlResponse {
   repository: {
+    defaultBranchRef: { name: string } | null;
     pullRequest: {
       id: string;
       number: number;
@@ -42,6 +43,7 @@ interface PrCoreGraphQlResponse {
 const prCoreQuery = `
   query PrCore($owner: String!, $repo: String!, $pullNumber: Int!, $cursor: String) {
     repository(owner: $owner, name: $repo) {
+      defaultBranchRef { name }
       pullRequest(number: $pullNumber) {
         id
         number
@@ -120,6 +122,7 @@ export async function fetchPrCoreData(
         baseOwner: pr.baseRepository.owner.login,
         baseRepo: pr.baseRepository.name,
         baseRef: pr.baseRefName,
+        defaultBranch: response.repository?.defaultBranchRef?.name ?? pr.baseRefName,
         headOwner: headRepo?.owner.login ?? pr.baseRepository.owner.login,
         headRepo: headRepo?.name ?? pr.baseRepository.name,
         suggestedReviewers: pr.suggestedReviewers

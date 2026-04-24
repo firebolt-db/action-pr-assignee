@@ -21,6 +21,7 @@ export interface PrCoreData {
   baseOwner: string;
   baseRepo: string;
   baseRef: string;
+  defaultBranch: string;
   headOwner: string;
   headRepo: string;
   files: PrChangedFile[];
