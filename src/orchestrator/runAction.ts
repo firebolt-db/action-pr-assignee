@@ -5,6 +5,7 @@ import {
   fetchActivitySignals,
   fetchCodeownersAtBaseRef,
   fetchCommitFamiliaritySignals,
+  fetchDeletedUsers,
   fetchLimitedAvailabilityUsers,
   fetchPrCoreData,
   fetchRenamePreviousPathByCurrentFilename,
@@ -84,7 +85,13 @@ export async function runAction(): Promise<ActionRunResult> {
     throw new Error('Malformed event payload: missing repository owner/name or pull request number.');
   }
 
-  const pr = await fetchPrCoreData(octokit, owner, repo, pullNumber);
+  let pr: Awaited<ReturnType<typeof fetchPrCoreData>>;
+  try {
+    pr = await fetchPrCoreData(octokit, owner, repo, pullNumber);
+  } catch (error) {
+    core.warning(`Unable to fetch PR core data, skipping assignment: ${error instanceof Error ? error.message : String(error)}`);
+    return outputs;
+  }
 
   if (pr.isDraft) {
     outputs.skippedReason = 'draft';
@@ -121,9 +128,27 @@ export async function runAction(): Promise<ActionRunResult> {
     core.warning(`PR touches ${pr.files.length} files; familiarity and ownership computed on top 200 by LOC.`);
   }
 
-  const codeowners = await fetchCodeownersAtBaseRef(octokit, owner, repo, pr.baseRef);
+  const codeowners = await (async () => {
+    try {
+      return await fetchCodeownersAtBaseRef(octokit, owner, repo, pr.baseRef);
+    } catch (error) {
+      core.warning(`Unable to fetch CODEOWNERS at base ref, continuing without ownership signal: ${error instanceof Error ? error.message : String(error)}`);
+      return { found: false, path: null, content: null } as const;
+    }
+  })();
   const resolveCodeowners = codeowners.content
-    ? await buildCodeownersResolver(codeowners.content, config.fallbackPatterns)
+    ? await (async () => {
+        try {
+          return await buildCodeownersResolver(codeowners.content!, config.fallbackPatterns);
+        } catch (error) {
+          core.warning(
+            `Unable to parse CODEOWNERS content, continuing without ownership signal: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          return null;
+        }
+      })()
     : null;
 
   const teamRefSet = new Set<string>();
@@ -170,7 +195,14 @@ export async function runAction(): Promise<ActionRunResult> {
   }));
 
   const renameMap = pr.files.some((file) => file.changeType === 'RENAMED')
-    ? await fetchRenamePreviousPathByCurrentFilename(octokit, owner, repo, pr.number)
+    ? await (async () => {
+        try {
+          return await fetchRenamePreviousPathByCurrentFilename(octokit, owner, repo, pr.number);
+        } catch (error) {
+          core.warning(`Rename recovery unavailable, continuing without previous paths: ${error instanceof Error ? error.message : String(error)}`);
+          return {};
+        }
+      })()
     : {};
 
   const familiaritySince = nowMinusDays(config.signalWindows.familiarityWindowDays);
@@ -179,21 +211,35 @@ export async function runAction(): Promise<ActionRunResult> {
   const recentAssignmentSince = nowMinusDays(config.signalWindows.recentAssignmentWindowDays);
 
   const commitPaths = [...new Set(scopedFiles.flatMap((file) => [file.path, renameMap[file.path]].filter(Boolean) as string[]))];
-  const commitSignals = await fetchCommitFamiliaritySignals(
-    octokit,
-    owner,
-    repo,
-    pr.defaultBranch,
-    familiaritySince,
-    commitPaths,
-  );
-  const reviewSignals = await fetchReviewFamiliaritySignals(
-    octokit,
-    owner,
-    repo,
-    reviewSince,
-    scopedFiles.map((file) => file.path),
-  );
+  const commitSignals = await (async () => {
+    try {
+      return await fetchCommitFamiliaritySignals(
+        octokit,
+        owner,
+        repo,
+        pr.defaultBranch,
+        familiaritySince,
+        commitPaths,
+      );
+    } catch (error) {
+      core.warning(`Commit familiarity signal unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
+      return {} as Record<string, number>;
+    }
+  })();
+  const reviewSignals = await (async () => {
+    try {
+      return await fetchReviewFamiliaritySignals(
+        octokit,
+        owner,
+        repo,
+        reviewSince,
+        scopedFiles.map((file) => file.path),
+      );
+    } catch (error) {
+      core.warning(`Review familiarity signal unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
+      return {} as Record<string, number>;
+    }
+  })();
 
   const preCandidatePool = buildCandidatePool({
     codeownersPresent: codeowners.found,
@@ -212,6 +258,17 @@ export async function runAction(): Promise<ActionRunResult> {
       deletedUsers: [],
     },
   });
+
+  let deletedUsers: string[] = [];
+  try {
+    deletedUsers = await fetchDeletedUsers(
+      octokit,
+      preCandidatePool.candidates.map((candidate) => candidate.login),
+    );
+  } catch (error) {
+    core.warning(`Deleted-user filter unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
+    deletedUsers = [];
+  }
 
   let oooUsers: string[] = [];
   if (config.checkGitHubStatus) {
@@ -232,15 +289,22 @@ export async function runAction(): Promise<ActionRunResult> {
   const restoredActivity = await restoreActivityCache(owner, repo, config.signalWindows.activityWindowDays);
   const activitySignals =
     restoredActivity?.signalsByLogin ??
-    (await fetchActivitySignals(
-      octokit,
-      owner,
-      repo,
-      activitySince,
-      recentAssignmentSince,
-      preCandidatePool.candidates.map((candidate) => candidate.login),
-      teamMembersByRef,
-    ));
+    (await (async () => {
+      try {
+        return await fetchActivitySignals(
+          octokit,
+          owner,
+          repo,
+          activitySince,
+          recentAssignmentSince,
+          preCandidatePool.candidates.map((candidate) => candidate.login),
+          teamMembersByRef,
+        );
+      } catch (error) {
+        core.warning(`Activity/workload signal unavailable, continuing without it: ${error instanceof Error ? error.message : String(error)}`);
+        return {};
+      }
+    })());
 
   const candidatePool = buildCandidatePool({
     codeownersPresent: codeowners.found,
@@ -256,7 +320,7 @@ export async function runAction(): Promise<ActionRunResult> {
       unavailableReviewers: config.unavailableReviewers,
       botLoginPatterns: config.botLoginPatterns,
       oooUsers,
-      deletedUsers: [],
+      deletedUsers,
     },
   });
 
@@ -359,11 +423,6 @@ export async function runAction(): Promise<ActionRunResult> {
           }`,
         );
         outputs.assignmentPerformed = false;
-        await saveActivityCache(owner, repo, {
-          fetchedAt: new Date().toISOString(),
-          activityWindowDays: config.signalWindows.activityWindowDays,
-          signalsByLogin: activitySignals,
-        });
         return outputs;
       }
     }
@@ -371,11 +430,6 @@ export async function runAction(): Promise<ActionRunResult> {
 
   outputs.assignmentPerformed = false;
   core.warning('All assignment attempts failed. Proceeding without assignee.');
-  await saveActivityCache(owner, repo, {
-    fetchedAt: new Date().toISOString(),
-    activityWindowDays: config.signalWindows.activityWindowDays,
-    signalsByLogin: activitySignals,
-  });
   return outputs;
 
 }
