@@ -86,6 +86,7 @@ export interface RankedCandidate {
   total: number;
   tier: OwnershipTier;
   components: CandidateScoreComponents;
+  signalCounts: CandidateSignalStats;
 }
 
 export interface RankCandidatesInput {
@@ -350,6 +351,7 @@ export function rankCandidates(input: RankCandidatesInput): RankCandidatesResult
         total,
         tier: candidate.tier,
         components,
+        signalCounts: signals,
       };
     })
     .sort((a, b) => {

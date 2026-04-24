@@ -19,6 +19,13 @@ describe('formatExplanation', () => {
           team_fallback: 0,
           fallback_only: 0,
         },
+        signalCounts: {
+          commitCount: 4,
+          reviewCount: 3,
+          openAssignedPrs: 2,
+          pendingReviewRequests: 1,
+          recentAssignments: 1,
+        },
       },
       {
         login: 'bob',
@@ -34,6 +41,13 @@ describe('formatExplanation', () => {
           team_fallback: 10,
           fallback_only: 0,
         },
+        signalCounts: {
+          commitCount: 1,
+          reviewCount: 0,
+          openAssignedPrs: 0,
+          pendingReviewRequests: 0,
+          recentAssignments: 0,
+        },
       },
     ];
 
@@ -41,7 +55,8 @@ describe('formatExplanation', () => {
 
     expect(explanation).toContain('alice - total 55');
     expect(explanation).toContain('runner-up: bob (15)');
-    expect(explanation).toContain('active load: -16');
+    expect(explanation).toContain('active load (2 PRs): -16');
+    expect(explanation).toContain('code familiarity (4 commits): +20');
   });
 
   it('returns empty explanation for empty ranking', () => {

@@ -153,7 +153,9 @@ export async function runAction(partialDeps: Partial<RunActionDeps> = {}): Promi
 
   const outputs = createEmptyOutputs();
   const config = parseActionConfig(deps.core);
-  const octokit = deps.getOctokit(config.effectiveToken);
+  const baseOctokit = deps.getOctokit(config.githubToken);
+  const scopedOverrideOctokit = config.tokenOverride ? deps.getOctokit(config.tokenOverride) : null;
+  const elevatedOctokit = scopedOverrideOctokit ?? baseOctokit;
 
   const owner = deps.githubContext.repo.owner;
   const repo = deps.githubContext.repo.repo;
@@ -164,7 +166,7 @@ export async function runAction(partialDeps: Partial<RunActionDeps> = {}): Promi
 
   let pr: Awaited<ReturnType<typeof fetchPrCoreData>>;
   try {
-    pr = await deps.adapters.fetchPrCoreData(octokit, owner, repo, pullNumber);
+    pr = await deps.adapters.fetchPrCoreData(baseOctokit, owner, repo, pullNumber);
   } catch (error) {
     deps.core.warning(
       `Unable to fetch PR core data, skipping assignment: ${error instanceof Error ? error.message : String(error)}`,
@@ -209,7 +211,7 @@ export async function runAction(partialDeps: Partial<RunActionDeps> = {}): Promi
 
   const codeowners = await (async () => {
     try {
-      return await deps.adapters.fetchCodeownersAtBaseRef(octokit, owner, repo, pr.baseRef);
+      return await deps.adapters.fetchCodeownersAtBaseRef(baseOctokit, owner, repo, pr.baseRef);
     } catch (error) {
       deps.core.warning(
         `Unable to fetch CODEOWNERS at base ref, continuing without ownership signal: ${
@@ -265,7 +267,7 @@ export async function runAction(partialDeps: Partial<RunActionDeps> = {}): Promi
     const [org, slug] = teamRef.split('/');
     if (!org || !slug) continue;
     try {
-      teamMembersByRef[teamRef] = await deps.adapters.expandTeamMembers(octokit, org, slug);
+      teamMembersByRef[teamRef] = await deps.adapters.expandTeamMembers(elevatedOctokit, org, slug);
     } catch (error) {
       deps.core.warning(
         `Team expansion failed for @${teamRef}: ${error instanceof Error ? error.message : String(error)}`,
@@ -285,7 +287,7 @@ export async function runAction(partialDeps: Partial<RunActionDeps> = {}): Promi
   const renameMap = pr.files.some((file) => file.changeType === 'RENAMED')
     ? await (async () => {
         try {
-          return await deps.adapters.fetchRenamePreviousPathByCurrentFilename(octokit, owner, repo, pr.number);
+          return await deps.adapters.fetchRenamePreviousPathByCurrentFilename(baseOctokit, owner, repo, pr.number);
         } catch (error) {
           deps.core.warning(
             `Rename recovery unavailable, continuing without previous paths: ${
@@ -306,7 +308,7 @@ export async function runAction(partialDeps: Partial<RunActionDeps> = {}): Promi
   const commitSignals = await (async () => {
     try {
       return await deps.adapters.fetchCommitFamiliaritySignals(
-        octokit,
+        baseOctokit,
         owner,
         repo,
         pr.defaultBranch,
@@ -323,7 +325,7 @@ export async function runAction(partialDeps: Partial<RunActionDeps> = {}): Promi
   const reviewSignals = await (async () => {
     try {
       return await deps.adapters.fetchReviewFamiliaritySignals(
-        octokit,
+        baseOctokit,
         owner,
         repo,
         reviewSince,
@@ -358,7 +360,7 @@ export async function runAction(partialDeps: Partial<RunActionDeps> = {}): Promi
   let deletedUsers: string[] = [];
   try {
     deletedUsers = await deps.adapters.fetchDeletedUsers(
-      octokit,
+      baseOctokit,
       preCandidatePool.candidates.map((candidate) => candidate.login),
     );
   } catch (error) {
@@ -372,7 +374,7 @@ export async function runAction(partialDeps: Partial<RunActionDeps> = {}): Promi
   if (config.checkGitHubStatus) {
     try {
       oooUsers = await deps.adapters.fetchLimitedAvailabilityUsers(
-        octokit,
+        elevatedOctokit,
         preCandidatePool.candidates.map((candidate) => candidate.login),
       );
     } catch (error) {
@@ -394,7 +396,7 @@ export async function runAction(partialDeps: Partial<RunActionDeps> = {}): Promi
     (await (async () => {
       try {
         return await deps.adapters.fetchActivitySignals(
-          octokit,
+          elevatedOctokit,
           owner,
           repo,
           activitySince,
@@ -490,7 +492,11 @@ export async function runAction(partialDeps: Partial<RunActionDeps> = {}): Promi
     let transientRetries = 0;
     while (true) {
       try {
-        await octokit.graphql(assignMutation, {
+        if ((ranked.ranking[attempt]?.total ?? 0) <= 0) {
+          break;
+        }
+
+        await baseOctokit.graphql(assignMutation, {
           pullRequestId: pr.nodeId,
           logins: [login],
         });
