@@ -1,0 +1,192 @@
+[
+  {
+    "name": "happy_path",
+    "earlyExit": "",
+    "codeownersPresent": true,
+    "dryRun": false,
+    "files": [
+      { "path": "src/a.ts", "loc": 100, "directOwners": ["alice"], "teamMembers": [], "fallbackOwners": [] }
+    ],
+    "filters": { "prAuthor": "author", "excludeUsers": [], "unavailableReviewers": [], "oooUsers": [], "deletedUsers": [] },
+    "signalSeeds": { "commitFamiliarityLogins": [], "reviewFamiliarityLogins": [], "suggestedReviewerLogins": [] },
+    "signalsByLogin": {
+      "alice": { "commitCount": 2, "reviewCount": 1, "openAssignedPrs": 0, "pendingReviewRequests": 0, "recentAssignments": 0 }
+    },
+    "assignFailsFor": [],
+    "expected": { "skippedReason": "", "assignmentPerformed": true, "assignee": "alice" }
+  },
+  {
+    "name": "draft_pr",
+    "earlyExit": "draft",
+    "codeownersPresent": true,
+    "dryRun": false,
+    "files": [],
+    "filters": { "prAuthor": "author", "excludeUsers": [], "unavailableReviewers": [], "oooUsers": [], "deletedUsers": [] },
+    "signalSeeds": { "commitFamiliarityLogins": [], "reviewFamiliarityLogins": [], "suggestedReviewerLogins": [] },
+    "signalsByLogin": {},
+    "assignFailsFor": [],
+    "expected": { "skippedReason": "draft", "assignmentPerformed": false, "assignee": "" }
+  },
+  {
+    "name": "already_assigned",
+    "earlyExit": "already_assigned",
+    "codeownersPresent": true,
+    "dryRun": false,
+    "files": [],
+    "filters": { "prAuthor": "author", "excludeUsers": [], "unavailableReviewers": [], "oooUsers": [], "deletedUsers": [] },
+    "signalSeeds": { "commitFamiliarityLogins": [], "reviewFamiliarityLogins": [], "suggestedReviewerLogins": [] },
+    "signalsByLogin": {},
+    "assignFailsFor": [],
+    "expected": { "skippedReason": "already_assigned", "assignmentPerformed": false, "assignee": "" }
+  },
+  {
+    "name": "opted_out",
+    "earlyExit": "opted_out",
+    "codeownersPresent": true,
+    "dryRun": false,
+    "files": [],
+    "filters": { "prAuthor": "author", "excludeUsers": [], "unavailableReviewers": [], "oooUsers": [], "deletedUsers": [] },
+    "signalSeeds": { "commitFamiliarityLogins": [], "reviewFamiliarityLogins": [], "suggestedReviewerLogins": [] },
+    "signalsByLogin": {},
+    "assignFailsFor": [],
+    "expected": { "skippedReason": "opted_out", "assignmentPerformed": false, "assignee": "" }
+  },
+  {
+    "name": "fork_pr",
+    "earlyExit": "fork_pr",
+    "codeownersPresent": true,
+    "dryRun": false,
+    "files": [],
+    "filters": { "prAuthor": "author", "excludeUsers": [], "unavailableReviewers": [], "oooUsers": [], "deletedUsers": [] },
+    "signalSeeds": { "commitFamiliarityLogins": [], "reviewFamiliarityLogins": [], "suggestedReviewerLogins": [] },
+    "signalsByLogin": {},
+    "assignFailsFor": [],
+    "expected": { "skippedReason": "fork_pr", "assignmentPerformed": false, "assignee": "" }
+  },
+  {
+    "name": "codeowners_absent_signal_fallback",
+    "earlyExit": "",
+    "codeownersPresent": false,
+    "dryRun": false,
+    "files": [],
+    "filters": { "prAuthor": "author", "excludeUsers": [], "unavailableReviewers": [], "oooUsers": [], "deletedUsers": [] },
+    "signalSeeds": { "commitFamiliarityLogins": ["bob"], "reviewFamiliarityLogins": [], "suggestedReviewerLogins": [] },
+    "signalsByLogin": {
+      "bob": { "commitCount": 3, "reviewCount": 0, "openAssignedPrs": 0, "pendingReviewRequests": 0, "recentAssignments": 0 }
+    },
+    "assignFailsFor": [],
+    "expected": { "skippedReason": "", "assignmentPerformed": true, "assignee": "bob" }
+  },
+  {
+    "name": "codeowners_filtered_signal_fallback",
+    "earlyExit": "",
+    "codeownersPresent": true,
+    "dryRun": false,
+    "files": [
+      { "path": "src/a.ts", "loc": 10, "directOwners": ["alice"], "teamMembers": [], "fallbackOwners": [] }
+    ],
+    "filters": { "prAuthor": "author", "excludeUsers": ["alice"], "unavailableReviewers": [], "oooUsers": [], "deletedUsers": [] },
+    "signalSeeds": { "commitFamiliarityLogins": ["bob"], "reviewFamiliarityLogins": [], "suggestedReviewerLogins": [] },
+    "signalsByLogin": {
+      "bob": { "commitCount": 2, "reviewCount": 0, "openAssignedPrs": 0, "pendingReviewRequests": 0, "recentAssignments": 0 }
+    },
+    "assignFailsFor": [],
+    "expected": { "skippedReason": "", "assignmentPerformed": true, "assignee": "bob" }
+  },
+  {
+    "name": "team_expansion_denied",
+    "earlyExit": "",
+    "codeownersPresent": true,
+    "dryRun": false,
+    "files": [
+      { "path": "src/a.ts", "loc": 10, "directOwners": [], "teamMembers": [], "fallbackOwners": [] }
+    ],
+    "filters": { "prAuthor": "author", "excludeUsers": [], "unavailableReviewers": [], "oooUsers": [], "deletedUsers": [] },
+    "signalSeeds": { "commitFamiliarityLogins": ["bob"], "reviewFamiliarityLogins": [], "suggestedReviewerLogins": [] },
+    "signalsByLogin": {
+      "bob": { "commitCount": 1, "reviewCount": 0, "openAssignedPrs": 0, "pendingReviewRequests": 0, "recentAssignments": 0 }
+    },
+    "assignFailsFor": [],
+    "expected": { "skippedReason": "", "assignmentPerformed": true, "assignee": "bob" }
+  },
+  {
+    "name": "first_candidate_not_assignable_retry_next",
+    "earlyExit": "",
+    "codeownersPresent": true,
+    "dryRun": false,
+    "files": [
+      { "path": "src/a.ts", "loc": 10, "directOwners": ["alice"], "teamMembers": [], "fallbackOwners": [] },
+      { "path": "src/b.ts", "loc": 10, "directOwners": ["bob"], "teamMembers": [], "fallbackOwners": [] }
+    ],
+    "filters": { "prAuthor": "author", "excludeUsers": [], "unavailableReviewers": [], "oooUsers": [], "deletedUsers": [] },
+    "signalSeeds": { "commitFamiliarityLogins": [], "reviewFamiliarityLogins": [], "suggestedReviewerLogins": [] },
+    "signalsByLogin": {
+      "alice": { "commitCount": 1, "reviewCount": 0, "openAssignedPrs": 0, "pendingReviewRequests": 0, "recentAssignments": 0 },
+      "bob": { "commitCount": 1, "reviewCount": 0, "openAssignedPrs": 0, "pendingReviewRequests": 0, "recentAssignments": 0 }
+    },
+    "assignFailsFor": ["alice"],
+    "expected": { "skippedReason": "", "assignmentPerformed": true, "assignee": "bob" }
+  },
+  {
+    "name": "cache_miss_live_fetch_path",
+    "earlyExit": "",
+    "codeownersPresent": false,
+    "dryRun": false,
+    "files": [],
+    "filters": { "prAuthor": "author", "excludeUsers": [], "unavailableReviewers": [], "oooUsers": [], "deletedUsers": [] },
+    "signalSeeds": { "commitFamiliarityLogins": ["carl"], "reviewFamiliarityLogins": [], "suggestedReviewerLogins": [] },
+    "signalsByLogin": {
+      "carl": { "commitCount": 2, "reviewCount": 0, "openAssignedPrs": 0, "pendingReviewRequests": 0, "recentAssignments": 0 }
+    },
+    "assignFailsFor": [],
+    "expected": { "skippedReason": "", "assignmentPerformed": true, "assignee": "carl" }
+  },
+  {
+    "name": "all_non_positive_scores",
+    "earlyExit": "",
+    "codeownersPresent": true,
+    "dryRun": false,
+    "files": [
+      { "path": "src/a.ts", "loc": 1, "directOwners": [], "teamMembers": [], "fallbackOwners": [] }
+    ],
+    "filters": { "prAuthor": "author", "excludeUsers": [], "unavailableReviewers": [], "oooUsers": [], "deletedUsers": [] },
+    "signalSeeds": { "commitFamiliarityLogins": ["alice"], "reviewFamiliarityLogins": [], "suggestedReviewerLogins": [] },
+    "signalsByLogin": {
+      "alice": { "commitCount": 0, "reviewCount": 0, "openAssignedPrs": 5, "pendingReviewRequests": 2, "recentAssignments": 2 }
+    },
+    "assignFailsFor": [],
+    "expected": { "skippedReason": "empty_candidate_pool", "assignmentPerformed": false, "assignee": "" }
+  },
+  {
+    "name": "dry_run_no_mutation",
+    "earlyExit": "",
+    "codeownersPresent": true,
+    "dryRun": true,
+    "files": [
+      { "path": "src/a.ts", "loc": 20, "directOwners": ["alice"], "teamMembers": [], "fallbackOwners": [] }
+    ],
+    "filters": { "prAuthor": "author", "excludeUsers": [], "unavailableReviewers": [], "oooUsers": [], "deletedUsers": [] },
+    "signalSeeds": { "commitFamiliarityLogins": [], "reviewFamiliarityLogins": [], "suggestedReviewerLogins": [] },
+    "signalsByLogin": {
+      "alice": { "commitCount": 1, "reviewCount": 0, "openAssignedPrs": 0, "pendingReviewRequests": 0, "recentAssignments": 0 }
+    },
+    "assignFailsFor": [],
+    "expected": { "skippedReason": "", "assignmentPerformed": false, "assignee": "alice" }
+  },
+  {
+    "name": "large_pr_over_200_files",
+    "earlyExit": "",
+    "codeownersPresent": true,
+    "dryRun": false,
+    "files": [
+      { "path": "src/a.ts", "loc": 300, "directOwners": ["alice"], "teamMembers": [], "fallbackOwners": [] }
+    ],
+    "filters": { "prAuthor": "author", "excludeUsers": [], "unavailableReviewers": [], "oooUsers": [], "deletedUsers": [] },
+    "signalSeeds": { "commitFamiliarityLogins": [], "reviewFamiliarityLogins": [], "suggestedReviewerLogins": [] },
+    "signalsByLogin": {
+      "alice": { "commitCount": 1, "reviewCount": 0, "openAssignedPrs": 0, "pendingReviewRequests": 0, "recentAssignments": 0 }
+    },
+    "assignFailsFor": [],
+    "expected": { "skippedReason": "", "assignmentPerformed": true, "assignee": "alice" }
+  }
+]
