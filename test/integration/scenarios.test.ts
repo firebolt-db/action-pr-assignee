@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { buildCandidatePool, rankCandidates, type ScoreWeights } from '../../src/engine/index.js';
-import scenarios from '../fixtures/integration/scenarios.json';
+import scenarios from '../fixtures/integration/scenarios.json' with { type: 'json' };
 
 const defaultWeights: ScoreWeights = {
   weightDirectGte50: 50,

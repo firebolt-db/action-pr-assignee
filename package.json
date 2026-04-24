@@ -2,6 +2,7 @@
   "name": "@firebolt-db/action-pr-assignee",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "GitHub Action that deterministically selects and assigns one PR assignee.",
   "main": "dist/index.js",
   "scripts": {
