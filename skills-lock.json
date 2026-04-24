@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "github-action-creator": {
+      "source": "git@github.com:firebolt-db/verified-agent-skills.git",
+      "sourceType": "git",
+      "computedHash": "99c3dfa3c269d7f9b8918544ddd1c7ff69b1e674b86150c42b63771a5ced14dd"
+    }
+  }
+}
