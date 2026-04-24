@@ -14,7 +14,7 @@ import {
 import { parseActionConfig } from '../config/parseConfig.js';
 import { restoreActivityCache, saveActivityCache } from '../cache/index.js';
 import { buildCandidatePool, rankCandidates } from '../engine/index.js';
-import { createEmptyOutputs } from '../output.js';
+import { createEmptyOutputs, formatExplanation, writeJobSummary } from '../output.js';
 import type { ActionRunResult } from '../types.js';
 import { buildCodeownersResolver } from './codeowners.js';
 
@@ -34,13 +34,6 @@ function nowMinusDays(days: number): string {
   const date = new Date();
   date.setUTCDate(date.getUTCDate() - days);
   return date.toISOString();
-}
-
-function buildExplanation(assignee: string, total: number, runnerUp: { login: string; total: number } | null): string {
-  if (!runnerUp) {
-    return `${assignee} - total ${total}`;
-  }
-  return `${assignee} - total ${total}; runner-up: ${runnerUp.login} (${runnerUp.total})`;
 }
 
 export async function runAction(): Promise<ActionRunResult> {
@@ -236,11 +229,9 @@ export async function runAction(): Promise<ActionRunResult> {
 
   outputs.rankedCandidatesJson = JSON.stringify(ranked.ranking);
   outputs.proposedAssignee = ranked.assignee;
-  outputs.explanation = buildExplanation(
-    ranked.assignee,
-    ranked.ranking[0]?.total ?? 0,
-    ranked.ranking[1] ? { login: ranked.ranking[1].login, total: ranked.ranking[1].total } : null,
-  );
+  outputs.explanation = formatExplanation(ranked.ranking);
+  core.info(outputs.explanation);
+  await writeJobSummary(ranked.ranking, ranked.assignee, config);
 
   if (config.dryRun) {
     core.info(`Dry run enabled. Proposed assignee: ${outputs.proposedAssignee}`);
