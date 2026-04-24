@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - name: Commit rebuilt dist bundle if changed
+        run: |
+          if ! git diff --quiet -- dist/index.js; then
+            git add dist/index.js
+            git commit -m "chore(release): refresh dist bundle"
+            git push origin HEAD
+          fi
+      - name: Move major tag to current release commit
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          major="$(echo "$RELEASE_TAG" | sed -E 's/^(v[0-9]+).*/\1/')"
+          git tag -f "$major" "$RELEASE_TAG"
+          git push -f origin "$major"
