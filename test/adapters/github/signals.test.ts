@@ -56,7 +56,6 @@ describe('github signal adapters', () => {
       'r',
       '2026-03-01T00:00:00Z',
       '2026-03-01T00:00:00Z',
-      ['alice', 'bob'],
       { 'org/core': ['alice'] },
     );
 
@@ -235,7 +234,7 @@ describe('github signal adapters', () => {
       },
     } as OctokitLike;
 
-    await fetchActivitySignals(octokit, 'o', 'r', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', ['alice']);
+    await fetchActivitySignals(octokit, 'o', 'r', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
     expect(calls).toBe(1);
   });
 });
