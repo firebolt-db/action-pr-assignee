@@ -26,13 +26,21 @@ import type { ActionRunResult } from '../types.js';
 import { buildCodeownersResolver } from './codeowners.js';
 
 const assignMutation = `
-  mutation AssignPr($pullRequestId: ID!, $logins: [String!]!) {
-    addAssigneesToAssignable(input: { assignableId: $pullRequestId, assigneeLogins: $logins }) {
+  mutation AssignPr($pullRequestId: ID!, $assigneeIds: [ID!]!) {
+    addAssigneesToAssignable(input: { assignableId: $pullRequestId, assigneeIds: $assigneeIds }) {
       assignable {
         ... on PullRequest {
           id
         }
       }
+    }
+  }
+`;
+
+const resolveUserIdQuery = `
+  query ResolveUserId($login: String!) {
+    user(login: $login) {
+      id
     }
   }
 `;
@@ -496,9 +504,20 @@ export async function runAction(partialDeps: Partial<RunActionDeps> = {}): Promi
           break;
         }
 
+        const resolved = (await baseOctokit.graphql(resolveUserIdQuery, {
+          login,
+        })) as { user: { id: string } | null };
+
+        if (!resolved.user?.id) {
+          deps.core.warning(
+            `Candidate @${login} could not be resolved to a user; trying next candidate.`,
+          );
+          break;
+        }
+
         await baseOctokit.graphql(assignMutation, {
           pullRequestId: pr.nodeId,
-          logins: [login],
+          assigneeIds: [resolved.user.id],
         });
 
         outputs.proposedAssignee = login;

@@ -90,9 +90,12 @@ function makePrCore(overrides: Partial<PrCoreData> = {}): PrCoreData {
   };
 }
 
-function makeOctokit(assignBehavior: 'success' | 'not_assignable' | 'fatal'): OctokitLike {
+function makeOctokit(
+  assignBehavior: 'success' | 'not_assignable' | 'fatal',
+  unresolvableLogins: ReadonlySet<string> = new Set(),
+): OctokitLike {
   return {
-    graphql: async (_query: string, variables?: Record<string, unknown>) => {
+    graphql: async (query: string, variables?: Record<string, unknown>) => {
       if (variables?.pullRequestId) {
         if (assignBehavior === 'success') {
           return {};
@@ -101,6 +104,13 @@ function makeOctokit(assignBehavior: 'success' | 'not_assignable' | 'fatal'): Oc
           throw new Error('User is not assignable');
         }
         throw new Error('fatal assignment error');
+      }
+      if (query.includes('ResolveUserId')) {
+        const login = variables?.login as string | undefined;
+        if (login && unresolvableLogins.has(login)) {
+          return { user: null };
+        }
+        return { user: { id: `USER_${login ?? 'unknown'}` } };
       }
       return {};
     },
@@ -234,5 +244,52 @@ describe('runAction integration with injected deps', () => {
 
     expect(result.assignmentPerformed).toBe(false);
     expect(saveCalls).toBe(0);
+  });
+
+  it('falls through to next candidate when top winner cannot be resolved to a user', async () => {
+    const { core, warnings, infos } = makeCore({ dry_run: 'false' });
+
+    const result = await runAction({
+      core,
+      githubContext: {
+        repo: { owner: 'firebolt', repo: 'repo' },
+        payload: { pull_request: { number: 10 } },
+      } as typeof import('@actions/github').context,
+      getOctokit: () => makeOctokit('success', new Set(['cursor'])),
+      adapters: {
+        fetchPrCoreData: async () => makePrCore({ suggestedReviewers: ['cursor', 'alice'] }),
+        fetchCodeownersAtBaseRef: async () => ({
+          found: true,
+          path: 'CODEOWNERS',
+          content: 'src/** @cursor @alice',
+        }),
+        fetchRenamePreviousPathByCurrentFilename: async () => ({}),
+        expandTeamMembers: async () => [],
+        fetchCommitFamiliaritySignals: async () => ({ cursor: 5, alice: 1 }),
+        fetchReviewFamiliaritySignals: async () => ({}),
+        fetchDeletedUsers: async () => [],
+        fetchLimitedAvailabilityUsers: async () => [],
+        fetchActivitySignals: async () => ({}),
+      },
+      cache: {
+        restoreActivityCache: async () => null,
+        saveActivityCache: async () => {},
+      },
+      buildCodeownersResolver: async () => () => ({
+        directOwners: ['cursor', 'alice'],
+        teamRefs: [],
+        fallbackOwners: [],
+        fallbackTeamRefs: [],
+      }),
+      writeJobSummary: async () => {},
+      sleep: async () => {},
+    });
+
+    expect(result.assignmentPerformed).toBe(true);
+    expect(result.proposedAssignee).toBe('alice');
+    expect(
+      warnings.some((warning) => warning.includes('@cursor could not be resolved to a user')),
+    ).toBe(true);
+    expect(infos.some((info) => info.includes('Assigned @alice'))).toBe(true);
   });
 });

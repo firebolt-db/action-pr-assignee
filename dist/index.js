@@ -70984,13 +70984,20 @@ async function buildCodeownersResolver(content, fallbackPatterns) {
 
 // src/orchestrator/runAction.ts
 var assignMutation = `
-  mutation AssignPr($pullRequestId: ID!, $logins: [String!]!) {
-    addAssigneesToAssignable(input: { assignableId: $pullRequestId, assigneeLogins: $logins }) {
+  mutation AssignPr($pullRequestId: ID!, $assigneeIds: [ID!]!) {
+    addAssigneesToAssignable(input: { assignableId: $pullRequestId, assigneeIds: $assigneeIds }) {
       assignable {
         ... on PullRequest {
           id
         }
       }
+    }
+  }
+`;
+var resolveUserIdQuery = `
+  query ResolveUserId($login: String!) {
+    user(login: $login) {
+      id
     }
   }
 `;
@@ -71311,9 +71318,16 @@ async function runAction(partialDeps = {}) {
         if ((ranked.ranking[attempt]?.total ?? 0) <= 0) {
           break;
         }
+        const resolved = await baseOctokit.graphql(resolveUserIdQuery, {
+          login
+        });
+        if (!resolved.user?.id) {
+          deps.core.warning(`Candidate @${login} could not be resolved to a user; trying next candidate.`);
+          break;
+        }
         await baseOctokit.graphql(assignMutation, {
           pullRequestId: pr.nodeId,
-          logins: [login]
+          assigneeIds: [resolved.user.id]
         });
         outputs.proposedAssignee = login;
         outputs.assignmentPerformed = true;
