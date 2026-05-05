@@ -12,7 +12,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@actions/cache": "^4.0.2",
+    "@actions/cache": "^6.0.0",
     "@actions/core": "^1.11.1",
     "@actions/github": "^6.0.1",
     "codeowners": "^5.1.1"
