@@ -14,7 +14,7 @@
   "dependencies": {
     "@actions/cache": "^4.0.2",
     "@actions/core": "^1.11.1",
-    "@actions/github": "^6.0.1",
+    "@actions/github": "^9.1.1",
     "codeowners": "^5.1.1"
   },
   "devDependencies": {
